@@ -228,70 +228,94 @@ function TopBar({me,role,coins,onLogout}){
    ADMIN HOME (foundation: approvals + roster + prep phase)
    ============================================================ */
 function AdminHome({data,mutate}){
+  const [atab,setAtab]=useState("home");
   const [msg,setMsg]=useState("");
+  const [delArm,setDelArm]=useState("");
+  const [resetArm,setResetArm]=useState(false);
   const pending=Object.keys(data.pending||{});
   const players=Object.keys(data.users||{}).filter(n=>data.users[n].role==="player");
 
-  function approve(n){
-    mutate(d=>{ const p=d.pending&&d.pending[n]; if(!p)return d; d.users[n]=freshPlayer(p.password); delete d.pending[n]; return d; });
-    setMsg(n+" approved.");
-  }
+  function approve(n){ mutate(d=>{ const p=d.pending&&d.pending[n]; if(!p)return d; d.users[n]=freshPlayer(p.password); delete d.pending[n]; return d; }); setMsg(n+" approved."); }
   function deny(n){ mutate(d=>{ if(d.pending) delete d.pending[n]; return d; }); }
-  function togglePrep(){
-    mutate(d=>{ d.prepEnded=!d.prepEnded; return d; });
-  }
-  function newWeek(){
-    mutate(d=>{ d.week=(d.week||1)+1; d.prepEnded=false; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player") us[n].coins=(us[n].coins||0)+100; }); return d; });
-    setMsg("New week started. +100 coins to all players.");
-  }
+  function togglePrep(){ mutate(d=>{ d.prepEnded=!d.prepEnded; return d; }); }
+  function newWeek(){ mutate(d=>{ d.week=(d.week||1)+1; d.prepEnded=false; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player") us[n].coins=(us[n].coins||0)+100; }); return d; }); setMsg("New week started. +100 coins to all players."); }
+  function delPlayer(n){ mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
+  function resetAll(){ mutate(d=>{ const keep={}; Object.keys(d.users||{}).forEach(n=>{ if(d.users[n].role==="admin") keep[n]=d.users[n]; }); d.users=keep; d.pending={}; d.week=1; d.season=1; d.prepEnded=false; d.champion=null; d.tournament={started:false}; return d; }); setResetArm(false); setMsg("All test accounts cleared."); }
+
+  const tab=(t,label)=>(
+    <button key={t} className="btn" onClick={()=>{setAtab(t);setMsg("");setDelArm("");setResetArm(false);}}
+      style={{flex:1,padding:"9px 4px",background:atab===t?"#c8a96e18":"transparent",border:"1px solid "+(atab===t?"#c8a96e44":"transparent"),borderRadius:"7px",color:atab===t?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600,letterSpacing:".04em"}}>{label}</button>
+  );
 
   return (
     <div style={{padding:"14px 18px",maxWidth:"640px",margin:"0 auto",display:"flex",flexDirection:"column",gap:"12px"}} className="fu">
-      <div style={sCard}>
-        <div style={{...sLbl,marginBottom:"6px"}}>Season {data.season||1} · Week {data.week||1}</div>
-        <div style={{fontSize:"12px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>
-          {data.prepEnded ? "Decks are LOCKED for the matchday. Players cannot edit until you start the next week." : "Prep Time is OPEN. Players can buy, open packs, and remove cards."}
-        </div>
-        <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
-          <button className="btn" onClick={togglePrep} style={{flex:1,minWidth:"150px",padding:"9px",background:data.prepEnded?"#1a1400":"#0d1a2a",border:"1px solid "+(data.prepEnded?"#c8a96e55":"#334466"),borderRadius:"8px",color:data.prepEnded?C.gold:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600}}>{data.prepEnded?"Reopen Prep Time":"End Prep Time"}</button>
-          <button className="btn" onClick={newWeek} style={{flex:1,minWidth:"150px",padding:"9px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600}}>Start next week (+100 all)</button>
-        </div>
+      <div style={{display:"flex",gap:"3px",background:"#090b12",borderRadius:"10px",padding:"4px",border:"1px solid #c8a96e1a"}}>
+        {tab("home","Home")}{tab("players","Players")}{tab("bracket","Bracket")}
       </div>
 
-      <div style={sCard}>
-        <div style={{...sLbl,marginBottom:"10px"}}>Registrations ({pending.length})</div>
-        {pending.length===0 && <div style={{fontSize:"13px",color:C.muted}}>No pending registrations.</div>}
-        {pending.map(n=>(
-          <div key={n} style={{display:"flex",alignItems:"center",gap:"12px",padding:"9px 0",borderBottom:"1px solid #c8a96e10"}}>
-            <div style={{flex:1}}>
-              <div style={{fontSize:"14px",color:C.text,fontWeight:600}}>{n}</div>
-              <div style={{fontFamily:"monospace",fontSize:"18px",color:C.gold,letterSpacing:".1em"}}>{data.pending[n].password}</div>
+      {atab==="home" && (
+        <React.Fragment>
+          <div style={sCard}>
+            <div style={{...sLbl,marginBottom:"6px"}}>Season {data.season||1} · Week {data.week||1}</div>
+            <div style={{fontSize:"12px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>{data.prepEnded ? "Decks are LOCKED for the matchday. Players cannot edit until you start the next week." : "Prep Time is OPEN. Players can buy, open packs, and remove cards."}</div>
+            <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
+              <button className="btn" onClick={togglePrep} style={{flex:1,minWidth:"150px",padding:"9px",background:data.prepEnded?"#1a1400":"#0d1a2a",border:"1px solid "+(data.prepEnded?"#c8a96e55":"#334466"),borderRadius:"8px",color:data.prepEnded?C.gold:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600}}>{data.prepEnded?"Reopen Prep Time":"End Prep Time"}</button>
+              <button className="btn" onClick={newWeek} style={{flex:1,minWidth:"150px",padding:"9px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600}}>Start next week (+100 all)</button>
             </div>
-            <button className="btn" onClick={()=>approve(n)} style={{padding:"6px 12px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"6px",color:"#6c6",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Approve</button>
-            <button className="btn" onClick={()=>deny(n)} style={{padding:"6px 12px",background:"#1a0a0a",border:"1px solid #4a2222",borderRadius:"6px",color:"#c66",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Deny</button>
           </div>
-        ))}
-      </div>
+          <div style={sCard}>
+            <div style={{...sLbl,marginBottom:"10px"}}>Registrations ({pending.length})</div>
+            {pending.length===0 && <div style={{fontSize:"13px",color:C.muted}}>No pending registrations.</div>}
+            {pending.map(n=>(
+              <div key={n} style={{display:"flex",alignItems:"center",gap:"12px",padding:"9px 0",borderBottom:"1px solid #c8a96e10"}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:"14px",color:C.text,fontWeight:600}}>{n}</div>
+                  <div style={{fontFamily:"monospace",fontSize:"18px",color:C.gold,letterSpacing:".1em"}}>{data.pending[n].password}</div>
+                </div>
+                <button className="btn" onClick={()=>approve(n)} style={{padding:"6px 12px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"6px",color:"#6c6",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Approve</button>
+                <button className="btn" onClick={()=>deny(n)} style={{padding:"6px 12px",background:"#1a0a0a",border:"1px solid #4a2222",borderRadius:"6px",color:"#c66",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Deny</button>
+              </div>
+            ))}
+          </div>
+        </React.Fragment>
+      )}
 
-      <div style={sCard}>
-        <div style={{...sLbl,marginBottom:"10px"}}>Players ({players.length})</div>
-        {players.length===0 && <div style={{fontSize:"13px",color:C.muted}}>No players yet.</div>}
-        {players.map(n=>{
-          const u=data.users[n];
-          return (
-            <div key={n} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
-              <div style={{fontSize:"13px",color:C.text}}>{n}</div>
-              <div style={{fontSize:"12px",color:C.muted}}>pw: {u.password} · {u.coins||0} coins · {u.starter?("deck: "+u.starter):"no deck yet"}</div>
-            </div>
-          );
-        })}
-      </div>
+      {atab==="players" && (
+        <React.Fragment>
+          <div style={sCard}>
+            <div style={{...sLbl,marginBottom:"10px"}}>Players ({players.length})</div>
+            {players.length===0 && <div style={{fontSize:"13px",color:C.muted}}>No players yet.</div>}
+            {players.map(n=>{
+              const u=data.users[n];
+              return (
+                <div key={n} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",padding:"9px 0",borderBottom:"1px solid #c8a96e10"}}>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontSize:"13px",color:C.text}}>{n}{u.riotId?<span style={{color:C.muted,fontSize:"11px"}}> · {u.riotId}</span>:null}</div>
+                    <div style={{fontSize:"11px",color:C.muted}}>pw {u.password} · {u.coins||0} coins · {u.aphro||0} AP · {u.starter?("deck: "+u.starter):"no deck"}</div>
+                  </div>
+                  {delArm===n
+                    ? <button className="btn" onClick={()=>delPlayer(n)} style={{flexShrink:0,padding:"6px 10px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"11px",fontWeight:700}}>Confirm delete</button>
+                    : <button className="btn" onClick={()=>{setDelArm(n);setResetArm(false);}} style={{flexShrink:0,padding:"6px 10px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Delete</button>}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{...sCard,borderColor:"#5a2a2a"}}>
+            <div style={{...sLbl,marginBottom:"6px",color:"#a66"}}>Danger zone</div>
+            <div style={{fontSize:"12px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Removes every player and pending registration (keeps the Storyteller admin) and resets the season. Use this to wipe the board after a test.</div>
+            <button className="btn" onClick={()=>resetArm?resetAll():setResetArm(true)} style={{width:"100%",padding:"9px",background:resetArm?"#3a1010":"transparent",border:"1px solid "+(resetArm?"#a33":"#5a2a2a"),borderRadius:"8px",color:resetArm?"#f88":"#a66",fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600}}>{resetArm?"Confirm: delete ALL players & reset":"Delete all test accounts & reset season"}</button>
+          </div>
+        </React.Fragment>
+      )}
+
+      {atab==="bracket" && (
+        <div style={{...sCard,textAlign:"center"}}>
+          <div style={{...sLbl,marginBottom:"8px"}}>Tournament</div>
+          <div style={{fontSize:"13px",color:C.muted,lineHeight:1.7}}>The Swiss → Triangle bracket, check-in, and match reporting are being built next. Once ready, you'll run the whole tournament from here.</div>
+        </div>
+      )}
 
       {msg && <div style={{padding:"10px 14px",background:"#0a1a0a",border:"1px solid #3a6a3a",borderRadius:"8px",color:"#8c8",fontSize:"13px",fontFamily:"'Cinzel',serif"}}>{msg}</div>}
-
-      <div style={{...sCard,borderStyle:"dashed",borderColor:"#c8a96e1a",textAlign:"center"}}>
-        <div style={{fontSize:"12px",color:C.muted,lineHeight:1.6}}>Foundation online. Deck / shop / packs / removal and the Swiss → Triangle bracket + check-in are being ported onto this Firebase base next.</div>
-      </div>
     </div>
   );
 }
