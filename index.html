@@ -720,6 +720,9 @@ function pairRound(sorted,rec){
 }
 const TRI_DEPS={ B1:[["l","A1"],["w","A2"]], B2:[["l","A2"],["w","A3"]], B3:[["w","A4"],["l","A3"]], C1:[["l","B1"],["w","B2"]], C2:[["l","B2"],["w","B3"]], D1:[["l","C1"],["w","C2"]] };
 const TRI_ROUNDS=[["A1","A2","A3","A4"],["B1","B2","B3"],["C1","C2"],["D1"]];
+const TRI_POS={ A1:{r:1,c:4}, A2:{r:2,c:3}, A3:{r:3,c:2}, A4:{r:4,c:1}, B1:{r:2,c:4}, B2:{r:3,c:3}, B3:{r:4,c:2}, C1:{r:3,c:4}, C2:{r:4,c:3}, D1:{r:4,c:4} };
+const TRI_WIN={ A1:{r:1,c:5}, B1:{r:2,c:5}, C1:{r:3,c:5}, D1:{r:4,c:5} };
+const TRI_LOSE={ A4:{r:5,c:1}, B3:{r:5,c:2}, C2:{r:5,c:3}, D1:{r:5,c:4} };
 function triRes(m,side){ if(!m||!m.confirmed)return null; return side==="w"?m.winner:(m.winner===m.a?m.b:m.a); }
 function seedTri(S){
   const s=S.slice(0,8); while(s.length<8)s.push(null); const tri={};
@@ -738,8 +741,44 @@ function triRecompute(tri){
 }
 function triW(tri,k){ return tri[k]&&tri[k].confirmed?tri[k].winner:null; }
 function triL(tri,k){ return triRes(tri[k],"l"); }
-function triPlacements(tri){ return {1:triW(tri,"A1"),2:triW(tri,"D1"),3:triL(tri,"D1"),4:triW(tri,"C1")}; }
+function triPlacements(tri){ return {1:triW(tri,"A1"),2:triW(tri,"D1"),3:triW(tri,"C1"),4:triW(tri,"B1")}; }
+const F2ID={DE:0,FR:1,IO:2,NX:3,PZ:4,SI:5,BW:6,SH:7,MT:9,BC:10,RU:12};
+const FAC_MINVER={DE:1,FR:1,IO:1,NX:1,PZ:1,SI:1,BW:2,MT:2,SH:3,BC:4,RU:5};
+const B32A="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function b32enc(bytes){ let bits=0,val=0,out=""; for(let i=0;i<bytes.length;i++){ val=((val<<8)|bytes[i]); bits+=8; while(bits>=5){ bits-=5; out+=B32A[(val>>>bits)&31]; } val=val&((1<<bits)-1); } if(bits>0){ out+=B32A[(val<<(5-bits))&31]; } return out; }
+function encodeDeck(cards){
+  if(!cards||!cards.length) return "";
+  let ver=1; cards.forEach(c=>{ const v=FAC_MINVER[c.code.slice(2,4)]||1; if(v>ver)ver=v; });
+  const out=[(1<<4)|ver];
+  function wv(v){ v=v>>>0; while(true){ let b=v&0x7F; v=Math.floor(v/128); if(v){out.push(b|0x80);} else {out.push(b);break;} } }
+  const P=cards.map(c=>({set:parseInt(c.code.slice(0,2),10),fac:c.code.slice(2,4),num:parseInt(c.code.slice(4),10),count:c.count,code:c.code}));
+  [3,2,1].forEach(cnt=>{
+    const grp={}; P.filter(x=>x.count===cnt).forEach(x=>{ const k=x.set+"|"+x.fac; (grp[k]=grp[k]||[]).push(x.num); });
+    const groups=Object.keys(grp).map(k=>{ const pp=k.split("|"); return {set:+pp[0],fac:pp[1],nums:grp[k].sort((a,b)=>a-b)}; });
+    groups.sort((a,b)=> a.nums.length-b.nums.length || a.set-b.set || a.fac.localeCompare(b.fac));
+    wv(groups.length);
+    groups.forEach(g=>{ wv(g.nums.length); wv(g.set); wv(F2ID[g.fac]); g.nums.forEach(n=>wv(n)); });
+  });
+  P.filter(x=>x.count>3).sort((a,b)=>a.code.localeCompare(b.code)).forEach(x=>{ wv(x.count); wv(x.set); wv(F2ID[x.fac]); wv(x.num); });
+  return b32enc(out);
+}
+function deckUrl(deck){ const c=encodeDeck(deck||[]); return c?("https://runeterra.ar/decks/code/"+c):null; }
 
+function SignUpForm({onSubmit,me,data}){
+  const u=data.users[me]||{};
+  const [riot,setRiot]=useState(u.riotId||"");
+  const [disc,setDisc]=useState(u.discordId||"");
+  const ok=riot.trim()&&disc.trim();
+  return (
+    <div>
+      <div style={{...sLbl,marginBottom:"8px"}}>Sign up for the tournament</div>
+      <div style={{fontSize:"12.5px",color:C.muted,lineHeight:1.6,marginBottom:"12px"}}>Enter your Riot ID and Discord ID to register. After signing up you can view the other players' decks below.</div>
+      <input value={riot} onChange={e=>setRiot(e.target.value)} placeholder="Riot ID (Name#TAG)" style={{...sInp,marginBottom:"8px",fontSize:"15px"}}/>
+      <input value={disc} onChange={e=>setDisc(e.target.value)} placeholder="Discord ID" style={{...sInp,marginBottom:"12px",fontSize:"15px"}}/>
+      <button className="btn" disabled={!ok} onClick={()=>onSubmit(riot.trim(),disc.trim())} style={{width:"100%",padding:"13px",background:ok?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"10px",color:ok?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:900,letterSpacing:".04em"}}>Sign up</button>
+    </div>
+  );
+}
 function Tournament({data,me,role,mutate}){
   const t=data.tournament||{phase:"idle"};
   const isAdmin=role==="admin";
@@ -749,14 +788,19 @@ function Tournament({data,me,role,mutate}){
   const stand=standing(players,rec);
   const ci=Object.keys(t.checkin||{});
 
-  function openCheckin(){ mutate(d=>{ d.tournament={phase:"checkin",checkin:{},players:[]}; return d; }); }
+  const [nowTs,setNowTs]=useState(Date.now());
+  useEffect(()=>{ const id=setInterval(()=>setNowTs(Date.now()),15000); return ()=>clearInterval(id); },[]);
+  function openTournament(){ mutate(d=>{ d.tournament={phase:"signup",server:"EMEA",startTime:Date.now()+2*3600000,signups:{},checkin:{}}; return d; }); }
+  function setStart(ts){ mutate(d=>{ d.tournament.startTime=ts; return d; }); }
+  function setServer(sv){ mutate(d=>{ d.tournament.server=sv; return d; }); }
+  function signUp(riot,disc){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups)tt.signups={}; tt.signups[me]={riotId:riot,discordId:disc}; if(d.users[me]){ d.users[me].riotId=riot; d.users[me].discordId=disc; } return d; }); }
   function startSwiss(){ mutate(d=>{ const list=Object.keys(d.tournament.checkin||{}); if(list.length<2)return d; const R=swissRounds(list.length); const order=shuffle(list); const rc=computeRecords(list,[]); const m=pairRound(order,rc); d.tournament={phase:"swiss",checkin:d.tournament.checkin,players:list,round:1,totalRounds:R,rounds:[{matches:m}]}; return d; }); }
   function confirmMatch(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(!mm.report)return d; mm.winner=mm.report.winner; mm.confirmed=true; return d; }); }
   function setWinner(ri,mi,w){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.winner=w; mm.confirmed=true; mm.report={winner:w,by:"admin"}; return d; }); }
   function undo(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.confirmed=false; mm.winner=null; mm.report=null; return d; }); }
   function nextRound(){ mutate(d=>{ const tt=d.tournament; const cur=tt.rounds[tt.round-1]; if(cur.matches.some(m=>!m.confirmed))return d; if(tt.round>=tt.totalRounds)return d; const rc=computeRecords(tt.players,tt.rounds); const order=standing(tt.players,rc); const m=pairRound(order,rc); tt.rounds.push({matches:m}); tt.round++; return d; }); }
   function reset(){ mutate(d=>{ d.tournament={phase:"idle"}; return d; }); }
-  function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="checkin")return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; return d; }); }
+  function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups||!tt.signups[me])return d; if(Date.now()<(tt.startTime-3600000))return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; return d; }); }
   function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed)return d; mm.report={winner,by:me}; return d; }); }
   function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players,tt.rounds); const ord=standing(tt.players,rc); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
   function reportTri(k,winner){ mutate(d=>{ const mm=d.tournament.tri[k]; if(mm.confirmed)return d; mm.report={winner,by:me}; return d; }); }
@@ -771,73 +815,120 @@ function Tournament({data,me,role,mutate}){
     return <div style={wrap} className="fu"><div style={{...box,textAlign:"center"}}>
       <div style={{...sLbl,marginBottom:"8px"}}>Tournament</div>
       <div style={{fontSize:"13px",color:C.muted,lineHeight:1.6,marginBottom:isAdmin?"14px":0}}>No tournament is running right now.</div>
-      {isAdmin&&<button className="btn" onClick={openCheckin} style={{padding:"11px 22px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900}}>Open check-in</button>}
+      {isAdmin&&(data.prepEnded
+        ? <button className="btn" onClick={openTournament} style={{padding:"11px 22px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900}}>Open new tournament</button>
+        : <div style={{fontSize:"12px",color:"#a66",fontFamily:"'Cinzel',serif"}}>End Prep Time first to open a tournament.</div>)}
     </div></div>;
   }
 
-  if(t.phase==="checkin"){
-    const inList=t.checkin&&me&&t.checkin[me];
+  if(t.phase==="signup"){
+    const su=t.signups||{}; const suList=Object.keys(su);
+    const reg=me&&su[me]; const inCi=t.checkin&&me&&t.checkin[me];
     const isPlayer=me&&data.users[me]&&data.users[me].role==="player";
+    const ciOpen=nowTs>=(t.startTime-3600000);
+    const startLocal=new Date(t.startTime).toLocaleString([], {weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+    const ciLocal=new Date(t.startTime-3600000).toLocaleString([], {hour:"2-digit",minute:"2-digit"});
+    const mins=Math.round((t.startTime-nowTs)/60000);
+    const rel=mins>0?(mins>=60?("in "+Math.floor(mins/60)+"h "+(mins%60)+"m"):("in "+mins+"m")):"now";
     return <div style={wrap} className="fu">
       <div style={box}>
-        <div style={{...sLbl,marginBottom:"6px"}}>Check-in open</div>
-        <div style={{fontSize:"13px",color:C.muted,lineHeight:1.6,marginBottom:"12px"}}>Check in to join the matchday. Checking in gives you 5 participation coins. Only checked-in players are seeded into the Swiss.</div>
-        {isPlayer&&(inList
-          ? <div style={{padding:"11px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"9px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"13px",textAlign:"center"}}>You are checked in</div>
-          : <button className="btn" onClick={checkIn} style={{width:"100%",padding:"13px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"10px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:900,letterSpacing:".04em"}}>Check in (+5 coins)</button>)}
+        <div style={{...sLbl,marginBottom:"6px"}}>Tournament sign-ups open</div>
+        <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:"8px"}}>
+          <div style={{fontSize:"14px",color:C.text}}>Starts <strong style={{color:C.gold}}>{startLocal}</strong> <span style={{color:C.muted,fontSize:"12px"}}>({rel}, your local time)</span></div>
+          <div style={{fontSize:"13px",color:REGCOL[t.server==="AM"?"Demacia":"Freljord"],fontFamily:"'Cinzel',serif"}}>Server: {t.server}</div>
+        </div>
       </div>
-      <div style={box}>
-        <div style={{...sLbl,marginBottom:"10px"}}>Checked in ({ci.length})</div>
-        {ci.length===0&&<div style={{fontSize:"13px",color:C.muted}}>Nobody yet.</div>}
-        <div style={{display:"flex",flexWrap:"wrap",gap:"7px"}}>{ci.map(n=><span key={n} style={{fontSize:"13px",color:C.text,background:"#c8a96e12",border:"1px solid #c8a96e33",borderRadius:"14px",padding:"3px 11px"}}>{n}</span>)}</div>
-      </div>
-      {isAdmin&&<div style={{display:"flex",gap:"8px"}}>
-        <button className="btn" disabled={ci.length<2} onClick={startSwiss} style={{flex:1,padding:"11px",background:ci.length>=2?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"9px",color:ci.length>=2?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900}}>Start Swiss ({ci.length})</button>
-        <button className="btn" onClick={reset} style={{padding:"11px 16px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"9px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"12px"}}>Cancel</button>
+
+      {isAdmin&&<div style={box}>
+        <div style={{...sLbl,marginBottom:"10px"}}>Tournament settings</div>
+        <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px",flexWrap:"wrap"}}>
+          <span style={{fontSize:"12px",color:C.muted,width:"70px"}}>Start time</span>
+          <input type="datetime-local" defaultValue={new Date(t.startTime-new Date(t.startTime).getTimezoneOffset()*60000).toISOString().slice(0,16)} onChange={e=>{ const v=new Date(e.target.value).getTime(); if(v)setStart(v); }} style={{...sInp,width:"auto",flex:1,fontSize:"14px"}}/>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"12px"}}>
+          <span style={{fontSize:"12px",color:C.muted,width:"70px"}}>Server</span>
+          {["EMEA","AM"].map(sv=><button key={sv} className="btn" onClick={()=>setServer(sv)} style={{padding:"6px 16px",background:t.server===sv?"#c8a96e22":"transparent",border:"1px solid "+(t.server===sv?"#c8a96eaa":"#333"),borderRadius:"7px",color:t.server===sv?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>{sv}</button>)}
+        </div>
+        <div style={{display:"flex",gap:"8px"}}>
+          <button className="btn" disabled={ci.length<2} onClick={startSwiss} style={{flex:1,padding:"11px",background:ci.length>=2?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"9px",color:ci.length>=2?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900}}>Start Swiss round 1 ({ci.length} checked in)</button>
+          <button className="btn" onClick={reset} style={{padding:"11px 16px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"9px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"12px"}}>Cancel</button>
+        </div>
+        <div style={{fontSize:"10.5px",color:"#5a5347",marginTop:"8px"}}>Only checked-in players are seeded. Anyone who did not check in is dropped.</div>
       </div>}
+
+      {isPlayer&&<div style={box}>
+        {!reg
+          ? <SignUpForm onSubmit={signUp} me={me} data={data}/>
+          : <div>
+              <div style={{...sLbl,marginBottom:"8px"}}>You are registered</div>
+              <div style={{fontSize:"13px",color:C.muted,marginBottom:"12px"}}>Riot ID: <strong style={{color:C.text}}>{su[me].riotId}</strong> · Discord: <strong style={{color:C.text}}>{su[me].discordId}</strong></div>
+              {inCi
+                ? <div style={{padding:"11px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"9px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"13px",textAlign:"center"}}>Checked in for the matchday</div>
+                : (ciOpen
+                    ? <button className="btn" onClick={checkIn} style={{width:"100%",padding:"13px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"10px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:900,letterSpacing:".04em"}}>Check in (+5 coins)</button>
+                    : <div style={{padding:"11px",background:"#0d0f18",border:"1px solid #333",borderRadius:"9px",color:C.muted,fontSize:"12.5px",textAlign:"center"}}>Check-in opens at {ciLocal} (1 hour before start). If you miss it, you are dropped.</div>)}
+            </div>}
+      </div>}
+
+      <div style={box}>
+        <div style={{...sLbl,marginBottom:"10px"}}>Registered ({suList.length})</div>
+        {suList.length===0&&<div style={{fontSize:"13px",color:C.muted}}>Nobody yet.</div>}
+        {suList.map(n=>{ const u=data.users[n]||{}; const url=deckUrl(u.deck); const checked=t.checkin&&t.checkin[n];
+          return (
+            <div key={n} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"10px",padding:"8px 0",borderBottom:"1px solid #c8a96e10"}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:"13.5px",color:C.text}}>{n}{checked?<span style={{color:"#6ac68a",fontSize:"11px",fontFamily:"'Cinzel',serif"}}> · checked in</span>:null}</div>
+                <div style={{fontSize:"11px",color:C.muted}}>{su[n].riotId}</div>
+              </div>
+              {url?<a href={url} target="_blank" rel="noopener noreferrer" style={{flexShrink:0,fontSize:"12px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>view deck ↗</a>:<span style={{fontSize:"11px",color:"#3a3a3a"}}>no deck</span>}
+            </div>
+          ); })}
+      </div>
     </div>;
   }
 
   if(t.phase==="triangle" || t.phase==="done"){
     const tri=t.tri||{};
     const nm=n=>n||"-";
-    const mRow=(k)=>{ const m=tri[k]; if(!m) return null; const ready=m.a&&m.b; const mine=me&&(m.a===me||m.b===me); const rep=m.report;
-      return (
-        <div key={k} style={{padding:"9px 0",borderBottom:"1px solid #c8a96e10"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px"}}>
-            <div style={{fontSize:"13.5px",color:C.text}}><span style={{fontFamily:"'Cinzel',serif",color:C.muted,fontSize:"11px",marginRight:"7px"}}>{k}</span><strong style={{color:m.confirmed&&m.winner===m.a?"#6ac68a":C.text}}>{nm(m.a)}</strong> <span style={{color:C.muted,fontSize:"12px"}}>vs</span> <strong style={{color:m.confirmed&&m.winner===m.b?"#6ac68a":C.text}}>{nm(m.b)}</strong></div>
-            {!ready ? <span style={{fontSize:"11px",color:"#4a4a4a"}}>waiting</span>
-              : m.confirmed ? <span style={{fontSize:"12px",color:"#6ac68a",fontFamily:"'Cinzel',serif"}}>{m.winner} won</span>
-              : rep ? <span style={{fontSize:"11.5px",color:"#e0b040",fontFamily:"'Cinzel',serif"}}>pending: {rep.winner}</span>
-              : <span style={{fontSize:"11.5px",color:C.muted}}>not reported</span>}
-          </div>
-          {ready&&mine&&!m.confirmed&&<div style={{display:"flex",gap:"7px",marginTop:"7px"}}>
-            <button className="btn" onClick={()=>reportTri(k,me)} style={{flex:1,padding:"7px",background:rep&&rep.winner===me?"#0d1a12":"#0d0f18",border:"1px solid "+(rep&&rep.winner===me?"#2a5a3a":"#333"),borderRadius:"7px",color:rep&&rep.winner===me?"#6ac68a":C.text,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>I won</button>
-            <button className="btn" onClick={()=>reportTri(k,m.a===me?m.b:m.a)} style={{flex:1,padding:"7px",background:"#0d0f18",border:"1px solid #333",borderRadius:"7px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>I lost</button>
-          </div>}
-          {ready&&isAdmin&&!m.confirmed&&<div style={{display:"flex",gap:"6px",marginTop:"7px"}}>
-            {rep&&<button className="btn" onClick={()=>confirmTri(k)} style={{padding:"6px 12px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"6px",color:"#8c8",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Confirm {rep.winner}</button>}
-            <button className="btn" onClick={()=>setTriWinner(k,m.a)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"11px"}}>{m.a} won</button>
-            <button className="btn" onClick={()=>setTriWinner(k,m.b)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"11px"}}>{m.b} won</button>
-          </div>}
+    const nameCell=(k,nm)=>{ const m=tri[k]; if(!nm) return <div style={{padding:"5px 6px",borderRadius:"5px",background:"#0a0b10",border:"1px solid #1a1a1a",color:"#3a3a3a",fontSize:"11.5px"}}>-</div>;
+      const won=m.confirmed&&m.winner===nm; const pend=!m.confirmed&&m.report&&m.report.winner===nm; const mine=me&&(m.a===me||m.b===me); const clickable=m.a&&m.b&&!m.confirmed&&(mine||isAdmin);
+      const onClick=clickable?()=>{ if(isAdmin) setTriWinner(k,nm); else reportTri(k,nm); }:undefined;
+      return <div onClick={onClick} className={clickable?"btn":""} style={{padding:"5px 7px",borderRadius:"5px",background:won?"#173217":pend?"#2a2400":"#0d0f18",border:"1px solid "+(won?"#3a6a3a":pend?"#5a4a1a":"#262626"),color:won?"#9d9":pend?"#e0b040":(nm===me?C.gold:C.text),fontSize:"11.5px",cursor:clickable?"pointer":"default",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontWeight:nm===me?600:400}}>{nm}</div>; };
+    const matchBox=(k)=>{ const m=tri[k]; if(!m) return null; const ready=m.a&&m.b; const pos=TRI_POS[k];
+      return <div key={k} style={{gridColumn:pos.c,gridRow:pos.r,alignSelf:"center"}}>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:"9px",color:C.muted,marginBottom:"2px",letterSpacing:".08em"}}>{k}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:"3px",padding:"4px",background:"#090b12",border:"1px solid "+(m.confirmed?"#c8a96e30":ready?"#2f2f2f":"#171717"),borderRadius:"7px",opacity:ready?1:0.45}}>
+          {nameCell(k,m.a)}{nameCell(k,m.b)}
+          {isAdmin&&ready&&!m.confirmed&&m.report&&<button className="btn" onClick={()=>confirmTri(k)} style={{padding:"3px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"4px",color:"#8c8",fontSize:"9px",fontFamily:"'Cinzel',serif"}}>confirm {m.report.winner}</button>}
         </div>
-      ); };
+      </div>; };
+    const winBox=(k)=>{ const w=triW(tri,k); const pos=TRI_WIN[k]; const champ=k==="A1";
+      return <div key={"w"+k} style={{gridColumn:pos.c,gridRow:pos.r,alignSelf:"center"}}>
+        <div style={{padding:champ?"9px 6px":"8px 6px",borderRadius:"7px",background:champ?(w?"#2a2000":"#171200"):(w?"#142410":"#0d120a"),border:"1px solid "+(champ?(w?"#c8a96e":"#3a2f10"):(w?"#4a7a2a":"#243318")),textAlign:"center",boxShadow:champ&&w?"0 0 16px #c8a96e44":"none"}}>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:"8px",color:champ?"#c8a96e":"#7aaa4a",letterSpacing:".1em",marginBottom:"2px"}}>{champ?"CHAMPION":"Winner "+k}</div>
+          <div style={{fontSize:champ?"13px":"11.5px",color:w?(champ?C.gold:"#b8e090"):"#3a3a3a",fontWeight:champ?900:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{w||"—"}</div>
+        </div>
+      </div>; };
+    const loseBox=(k)=>{ const l=triL(tri,k); const pos=TRI_LOSE[k];
+      return <div key={"l"+k} style={{gridColumn:pos.c,gridRow:pos.r,alignSelf:"center"}}>
+        <div style={{padding:"6px",borderRadius:"6px",background:"#180c0c",border:"1px solid #4a2222",textAlign:"center"}}>
+          <div style={{fontSize:"7.5px",color:"#a66",fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>OUT · Loser {k}</div>
+          <div style={{fontSize:"10.5px",color:l?"#d88":"#3a2020",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l||"—"}</div>
+        </div>
+      </div>; };
     const pl=t.placements||{};
     return <div style={wrap} className="fu">
       <div style={{...box,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"15px",fontWeight:600}}>Triangle bracket</div><div style={{fontSize:"12px",color:C.muted}}>{t.phase==="done"?"Complete":"Top 8 from Swiss"}</div></div>
+        <div><div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"15px",fontWeight:600}}>Triangle bracket</div><div style={{fontSize:"12px",color:C.muted}}>{t.phase==="done"?"Complete":"Top 8 from Swiss · tap a name to report"}</div></div>
         {isAdmin&&<button className="btn" onClick={reset} style={{padding:"9px 12px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"8px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Reset</button>}
       </div>
-      {t.champion&&<div style={{...box,textAlign:"center",background:"#1a1400",borderColor:"#c8a96e66"}}>
-        <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"12px",letterSpacing:".2em",marginBottom:"4px"}}>CHAMPION</div>
-        <div className="glow" style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"24px",fontWeight:900}}>{t.champion}</div>
-      </div>}
-      {TRI_ROUNDS.map((rd,i)=>(
-        <div key={i} style={box}>
-          <div style={{...sLbl,marginBottom:"8px"}}>{["Round A","Round B","Round C","Final (D)"][i]}</div>
-          {rd.map(mRow)}
+      <div style={{...box,overflowX:"auto",paddingBottom:"14px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(108px,1fr))",gridTemplateRows:"repeat(5,auto)",gap:"7px 10px",minWidth:"600px"}}>
+          {["A1","A2","A3","A4","B1","B2","B3","C1","C2","D1"].map(matchBox)}
+          {["A1","B1","C1","D1"].map(winBox)}
+          {["A4","B3","C2","D1"].map(loseBox)}
         </div>
-      ))}
+      </div>
       {t.phase==="done"&&<div style={box}>
         <div style={{...sLbl,marginBottom:"10px"}}>Final placements · Aphrodite Points</div>
         {[1,2,3,4].map(k=>(<div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
