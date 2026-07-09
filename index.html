@@ -411,8 +411,8 @@ function Spectator({data,onLeave}){
 const REGIONS=["Demacia","Freljord","Ionia","Noxus","Piltover & Zaun","Shadow Isles","Bilgewater","Shurima","Mount Targon","Bandle City"];
 const REGCOL={Demacia:"#e3c44a",Freljord:"#62c4e8",Ionia:"#ef74b6",Noxus:"#d23b37","Piltover & Zaun":"#e58a26","Shadow Isles":"#2bb56e",Bilgewater:"#1fa8a8",Shurima:"#e0b133","Mount Targon":"#9a72d8","Bandle City":"#a9c24a"};
 const RARCOL=["#8fa3b0","#5b8fd0","#b25fd6","#e0b040"];
-const REGICON={Demacia:"Demacia",Freljord:"Freljord",Ionia:"Ionia",Noxus:"Noxus","Piltover & Zaun":"PiltoverZaun","Shadow Isles":"ShadowIsles",Bilgewater:"Bilgewater",Shurima:"Shurima","Mount Targon":"Targon","Bandle City":"BandleCity"};
-function regIcon(r){ return "https://dd.b.pvp.net/7_6_0/core/en_us/img/regions/icon-"+(REGICON[r]||r)+".png"; }
+const REGICON={Demacia:"demacia",Freljord:"freljord",Ionia:"ionia",Noxus:"noxus","Piltover & Zaun":"piltoverzaun","Shadow Isles":"shadowisles",Bilgewater:"bilgewater",Shurima:"shurima","Mount Targon":"targon","Bandle City":"bandlecity"};
+function regIcon(r){ return "https://dd.b.pvp.net/latest/core/en_us/img/regions/icon-"+(REGICON[r]||r.toLowerCase().replace(/[^a-z]/g,""))+".png"; }
 function RegionLogo({r,size}){
   const [ok,setOk]=useState(true);
   if(ok) return <img src={regIcon(r)} alt="" style={{width:size,height:size,objectFit:"contain",filter:"drop-shadow(0 0 7px "+REGCOL[r]+"77)"}} onError={()=>setOk(false)}/>;
