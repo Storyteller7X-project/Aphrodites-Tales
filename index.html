@@ -37,7 +37,7 @@
 const { useState, useEffect } = React;
 
 /* ============================================================
-   FIREBASE CONFIG  —  PASTE YOUR OWN VALUES BELOW
+   FIREBASE CONFIG  -  PASTE YOUR OWN VALUES BELOW
    Firebase console → Project settings → "Your apps" (Web) → SDK config.
    You must also enable Realtime Database (start in test mode).
    databaseURL must be the Realtime Database URL, e.g.
@@ -323,18 +323,29 @@ function AdminHome({data,mutate}){
 /* ============================================================
    PLAYER HOME (foundation)
    ============================================================ */
-function PlayerHome({data,me}){
+function PlayerHome({data,me,db,starters,mutate}){
   const u=data.users[me]||{};
+  const deck=u.deck||[];
+  const locked=!!data.prepEnded;
+  const coins=u.coins||0;
+  const [tab,setTab]=useState("deck");
+
+  function pickStarter(name,deckArr){ mutate(d=>{ d.users[me].starter=name; d.users[me].deck=deckArr; return d; }); }
+  function buyCard(code,price){ mutate(d=>{ const uu=d.users[me]; if(!!d.prepEnded||(uu.coins||0)<price||deckRuleBlock(db,uu.deck||[],code)) return d; uu.coins=(uu.coins||0)-price; uu.deck=addToDeck(uu.deck||[],code); return d; }); }
+  function removeCards(sel,cost){ mutate(d=>{ const uu=d.users[me]; if(!!d.prepEnded||(uu.coins||0)<cost) return d; let dk=(uu.deck||[]).map(e=>({...e})); Object.keys(sel).forEach(code=>{ const e=dk.find(x=>x.code===code); if(e) e.count-=sel[code]; }); uu.deck=dk.filter(e=>e.count>0); uu.coins=(uu.coins||0)-cost; return d; }); }
+
+  if(!u.starter || !deck.length) return <StarterSelect starters={starters} db={db} onPick={pickStarter}/>;
+
+  const tb=(t,l)=>(<button key={t} className="btn" onClick={()=>setTab(t)} style={{flex:1,padding:"11px 4px",background:tab===t?"#c8a96e12":"transparent",border:"none",borderBottom:"2px solid "+(tab===t?C.gold:"transparent"),color:tab===t?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12.5px",fontWeight:600,letterSpacing:".03em"}}>{l}</button>);
+
   return (
-    <div style={{padding:"14px 18px",maxWidth:"640px",margin:"0 auto",display:"flex",flexDirection:"column",gap:"12px"}} className="fu">
-      <div style={{...sCard,textAlign:"center",borderColor:"#c8a96e44"}}>
-        <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"16px",fontWeight:600,marginBottom:"6px"}}>Welcome, {me}</div>
-        <div style={{fontSize:"13px",color:"#aaa",lineHeight:1.7}}>You're connected to the shared archive. You have <strong style={{color:C.gold}}>{u.coins||0} coins</strong>.</div>
-        <div style={{marginTop:"10px",fontSize:"12px",color:C.muted}}>{data.prepEnded ? "Decks are locked for the matchday." : "Prep Time is open."}</div>
+    <div>
+      {locked && <div style={{background:"#1a1400",borderBottom:"1px solid #c8a96e33",padding:"7px",textAlign:"center",fontFamily:"'Cinzel',serif",fontSize:"11.5px",color:C.gold}}>Prep Time is over. Your deck is locked for the matchday.</div>}
+      <div style={{display:"flex",background:"#090b12",borderBottom:"1px solid #c8a96e1a",position:"sticky",top:0,zIndex:40}}>
+        {tb("deck","My Deck")}{tb("store","Store")}
       </div>
-      <div style={{...sCard,borderStyle:"dashed",borderColor:"#c8a96e1a",textAlign:"center"}}>
-        <div style={{fontSize:"13px",color:C.muted,lineHeight:1.7}}>Deck selection, shop, packs, card removal and the bracket are being ported onto this new Firebase version. This same account and deck will now follow you on every device.</div>
-      </div>
+      {tab==="deck" && <DeckView db={db} deck={deck} locked={locked} coins={coins} onRemove={removeCards}/>}
+      {tab==="store" && <Store db={db} deck={deck} coins={coins} locked={locked} onBuy={buyCard}/>}
     </div>
   );
 }
@@ -365,12 +376,180 @@ function Spectator({data,onLeave}){
 }
 
 /* ============================================================
+   CARD DATA + GAME (deck / store / removal)
+   ============================================================ */
+const REGIONS=["Demacia","Freljord","Ionia","Noxus","Piltover & Zaun","Shadow Isles","Bilgewater","Shurima","Mount Targon","Bandle City"];
+const REGCOL={Demacia:"#e3c44a",Freljord:"#62c4e8",Ionia:"#ef74b6",Noxus:"#d23b37","Piltover & Zaun":"#e58a26","Shadow Isles":"#2bb56e",Bilgewater:"#1fa8a8",Shurima:"#e0b133","Mount Targon":"#9a72d8","Bandle City":"#a9c24a"};
+const RARCOL=["#8fa3b0","#5b8fd0","#b25fd6","#e0b040"];
+const ECON={PACK_COST:1,DECK_FLOOR:10,DECK_MAX:100,MAX_COPIES:3,MAX_CHAMPS:20,PACK_SIZE:5};
+
+function buildDB(cards){
+  const by={}; cards.forEach(c=>{ by[c[0]]=c; });
+  const pools={}; REGIONS.forEach(r=>pools[r]=[]);
+  cards.forEach(c=>{ const regs=c[5]||[]; REGIONS.forEach(r=>{ if(regs.indexOf(r)>=0||regs.indexOf("Runeterra ("+r+")")>=0) pools[r].push(c[0]); }); });
+  return {list:cards, by, pools};
+}
+const cCode=c=>c[0], cName=c=>c[1], cMana=c=>c[2], cRar=c=>c[3], cChamp=c=>c[4]===1, cRegs=c=>c[5]||[], cCoin=c=>c[6], cImg=c=>c[8]||"";
+function coinOf(db,code){ const c=db.by[code]; return c?cCoin(c):20; }
+function isChampCode(db,code){ const c=db.by[code]; return !!c&&cChamp(c); }
+function deckTotal(deck){ return (deck||[]).reduce((s,e)=>s+(e.count||0),0); }
+function uniqueChamps(db,deck){ return (deck||[]).filter(e=>isChampCode(db,e.code)).length; }
+function copiesOf(deck,code){ const e=(deck||[]).find(x=>x.code===code); return e?e.count:0; }
+function addToDeck(deck,code){ const d=(deck||[]).map(e=>({...e})); const e=d.find(x=>x.code===code); if(e)e.count++; else d.push({code,count:1}); return d; }
+function deckRuleBlock(db,deck,code){
+  if(deckTotal(deck)>=ECON.DECK_MAX) return "Deck full ("+ECON.DECK_MAX+")";
+  if(copiesOf(deck,code)>=ECON.MAX_COPIES) return "Max "+ECON.MAX_COPIES+" copies";
+  if(isChampCode(db,code)&&copiesOf(deck,code)===0&&uniqueChamps(db,deck)>=ECON.MAX_CHAMPS) return "Max "+ECON.MAX_CHAMPS+" champions";
+  return null;
+}
+function removalCost(n){ if(n>=100)return 1; if(n>=90)return 2; if(n>=80)return 5; if(n>=70)return 10; if(n>=60)return 20; if(n>=50)return 50; if(n>=40)return 100; if(n>=30)return 200; if(n>=20)return 500; if(n>=11)return 1000; return 0; }
+function removalBatch(n){ return Math.max(0,Math.min(10,n-ECON.DECK_FLOOR)); }
+
+const rTab=(on,col)=>({padding:"4px 9px",background:on?(col||"#c8a96e")+"22":"transparent",border:"1px solid "+(on?(col||"#c8a96e")+"88":"#333"),borderRadius:"6px",color:on?(col||"#c8a96e"):C.muted,fontFamily:"'Cinzel',serif",fontSize:"10.5px",cursor:"pointer",whiteSpace:"nowrap"});
+
+function CardThumb({card,w,dim,badge,onClick,sub}){
+  const rc=RARCOL[cRar(card)]||"#888";
+  return (
+    <div onClick={onClick} className={onClick?"btn":""} style={{width:w+"px",flexShrink:0,cursor:onClick?"pointer":"default",opacity:dim?0.4:1}}>
+      <div style={{position:"relative",borderRadius:"7px",overflow:"hidden",border:"1px solid "+rc+"66",background:"#0b0c14"}}>
+        <img src={cImg(card)} alt={cName(card)} loading="lazy" style={{width:"100%",display:"block"}} onError={e=>{e.target.style.opacity=0;}}/>
+        {badge!==undefined && <div style={{position:"absolute",top:"3px",right:"3px",background:"rgba(0,0,0,.82)",border:"1px solid #c8a96e66",borderRadius:"10px",padding:"1px 6px",fontFamily:"'Cinzel',serif",fontSize:"11px",color:C.gold,fontWeight:600}}>{badge}</div>}
+      </div>
+      {sub!==undefined && <div style={{fontSize:"10px",color:"#e8a488",textAlign:"center",marginTop:"2px"}}>{sub}</div>}
+    </div>
+  );
+}
+
+function StarterSelect({starters,db,onPick}){
+  const [sel,setSel]=useState(null);
+  return (
+    <div style={{padding:"16px 18px",maxWidth:"720px",margin:"0 auto"}} className="fu">
+      <div style={{...sLbl,marginBottom:"4px",textAlign:"center"}}>Choose your deck</div>
+      <div style={{fontSize:"13px",color:C.muted,textAlign:"center",marginBottom:"16px",lineHeight:1.6}}>Pick one starter deck. You can't change your choice until the season ends. You'll shape it by buying cards, opening packs, and removing cards.</div>
+      <div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
+        {starters.map(s=>{
+          const champs=s.codes.filter(c=>isChampCode(db,c)).slice(0,4).map(c=>db.by[c]).filter(Boolean);
+          const on=sel===s.name;
+          return (
+            <div key={s.name} onClick={()=>setSel(s.name)} className="btn" style={{...sCard,cursor:"pointer",border:"1px solid "+(on?"#c8a96e":"#c8a96e22"),background:on?"#c8a96e0f":C.surface,display:"flex",alignItems:"center",gap:"12px"}}>
+              <div style={{display:"flex",gap:"4px"}}>{champs.map(c=><img key={cCode(c)} src={cImg(c)} alt="" style={{width:"36px",borderRadius:"5px",border:"1px solid #c8a96e44"}} onError={e=>{e.target.style.visibility="hidden";}}/>)}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontFamily:"'Cinzel',serif",color:on?C.gold:C.text,fontSize:"15px",fontWeight:600}}>{s.name}</div>
+                <div style={{fontSize:"12px",color:C.muted}}>{s.codes.length} cards</div>
+              </div>
+              {on && <div style={{color:C.gold,fontSize:"20px"}}>✓</div>}
+            </div>
+          );
+        })}
+      </div>
+      <button className="btn" disabled={!sel} onClick={()=>onPick(sel, starters.find(s=>s.name===sel).codes.map(c=>({code:c,count:1})))} style={{width:"100%",marginTop:"16px",padding:"14px",background:sel?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"10px",color:sel?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:900,letterSpacing:".08em"}}>{sel?("Lock in "+sel):"Select a deck"}</button>
+    </div>
+  );
+}
+
+function DeckView({db,deck,locked,coins,onRemove}){
+  const [sellMode,setSellMode]=useState(false);
+  const [sel,setSel]=useState({});
+  const total=deckTotal(deck), batch=removalBatch(total), cost=removalCost(total);
+  const selTotal=Object.values(sel).reduce((a,b)=>a+b,0);
+  const entries=(deck||[]).map(e=>({...e,card:db.by[e.code]})).filter(e=>e.card);
+  entries.sort((a,b)=>cMana(a.card)-cMana(b.card)||cName(a.card).localeCompare(cName(b.card)));
+  const champs=entries.filter(e=>cChamp(e.card)), cards=entries.filter(e=>!cChamp(e.card));
+
+  function tapSell(code){
+    const have=copiesOf(deck,code);
+    setSel(prev=>{ const cur=prev[code]||0; const others=Object.values(prev).reduce((a,b)=>a+b,0)-cur;
+      if(cur>=have){ const n={...prev}; delete n[code]; return n; }
+      if(others+cur+1>batch) return prev;
+      return {...prev,[code]:cur+1}; });
+  }
+  function confirm(){ if(selTotal<1||selTotal>batch||coins<cost) return; onRemove(sel,cost); setSellMode(false); setSel({}); }
+
+  const group=(title,list)=>(
+    <div style={{marginBottom:"14px"}}>
+      <div style={{...sLbl,marginBottom:"8px"}}>{title}</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:"7px"}}>
+        {list.map(e=>{ const s=sel[e.code]||0;
+          return <CardThumb key={e.code} card={e.card} w={72} onClick={sellMode?()=>tapSell(e.code):undefined} badge={e.count>1?("x"+e.count):undefined} dim={sellMode&&s>0} sub={sellMode&&s>0?("- "+s):undefined}/>; })}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{padding:"14px 18px",maxWidth:"760px",margin:"0 auto"}} className="fu">
+      <div style={{...sCard,display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px",padding:"12px 16px"}}>
+        <div>
+          <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"15px",fontWeight:600}}>{total} cards</div>
+          <div style={{fontSize:"11px",color:C.muted}}>{uniqueChamps(db,deck)}/{ECON.MAX_CHAMPS} champions · min {ECON.DECK_FLOOR} · max {ECON.DECK_MAX}</div>
+        </div>
+        {locked
+          ? <div style={{fontSize:"11px",color:"#a66",fontFamily:"'Cinzel',serif",textAlign:"right",maxWidth:"150px"}}>Locked for the matchday</div>
+          : (!sellMode
+              ? <button className="btn" disabled={batch<=0} onClick={()=>setSellMode(true)} style={{padding:"8px 14px",background:batch>0?"#2a1410":"#111",border:"1px solid "+(batch>0?"#cc664455":"#333"),borderRadius:"8px",color:batch>0?"#e8a488":C.faint,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>Buy removal</button>
+              : <button className="btn" onClick={()=>{setSellMode(false);setSel({});}} style={{padding:"8px 14px",background:"transparent",border:"1px solid #333",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>Cancel</button>)}
+      </div>
+      {sellMode && (
+        <div style={{...sCard,marginBottom:"12px",padding:"12px 16px",background:"#1a0f0a",borderColor:"#cc664433"}}>
+          <div style={{fontSize:"12.5px",color:"#e8b9a8",lineHeight:1.6,marginBottom:"10px"}}><strong style={{color:"#ffd9c8"}}>Remove up to {batch} {batch===1?"card":"cards"}.</strong> You don't have to remove them all. It costs <strong style={{color:C.gold}}>{cost} coins</strong> no matter how many you remove (down to a minimum deck of {ECON.DECK_FLOOR}). Tap a card to select it; tap again to add more copies.</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px"}}>
+            <div style={{fontSize:"13px",color:C.text}}>Selected {selTotal}/{batch} · cost {cost}{coins<cost?" (not enough coins)":""}</div>
+            <button className="btn" disabled={selTotal<1||coins<cost} onClick={confirm} style={{flexShrink:0,padding:"8px 16px",background:selTotal>=1&&coins>=cost?"linear-gradient(135deg,#cc6644,#aa4422)":"#111",border:"none",borderRadius:"8px",color:selTotal>=1&&coins>=cost?"#fff":C.faint,fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:700}}>Confirm ({selTotal})</button>
+          </div>
+        </div>
+      )}
+      {champs.length>0 && group("Champions ("+champs.reduce((s,e)=>s+e.count,0)+")",champs)}
+      {group("Cards ("+cards.reduce((s,e)=>s+e.count,0)+")",cards)}
+    </div>
+  );
+}
+
+function Store({db,deck,coins,locked,onBuy}){
+  const [q,setQ]=useState("");
+  const [reg,setReg]=useState("all");
+  let list=db.list;
+  if(reg!=="all") list=list.filter(c=>cRegs(c).indexOf(reg)>=0||cRegs(c).indexOf("Runeterra ("+reg+")")>=0);
+  if(q.trim()){ const ql=q.toLowerCase(); list=list.filter(c=>cName(c).toLowerCase().indexOf(ql)>=0); }
+  const shown=list.slice(0,120);
+  return (
+    <div style={{padding:"14px 18px",maxWidth:"860px",margin:"0 auto"}} className="fu">
+      <div style={{...sCard,marginBottom:"12px",padding:"12px 14px"}}>
+        <div style={{fontSize:"12px",color:C.muted,marginBottom:"8px",lineHeight:1.5}}>Buy any card directly for its coin price. {locked?"Locked for the matchday.":""}</div>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search cards" style={{...sInp,marginBottom:"8px",fontSize:"15px"}}/>
+        <div style={{display:"flex",gap:"5px",flexWrap:"wrap"}}>
+          <button className="btn" onClick={()=>setReg("all")} style={rTab(reg==="all")}>All</button>
+          {REGIONS.map(r=><button key={r} className="btn" onClick={()=>setReg(r)} style={rTab(reg===r,REGCOL[r])}>{r}</button>)}
+        </div>
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:"8px"}}>
+        {shown.map(c=>{ const block=deckRuleBlock(db,deck,cCode(c)); const price=cCoin(c); const can=!locked&&!block&&coins>=price;
+          return (
+            <div key={cCode(c)} style={{width:"92px"}}>
+              <CardThumb card={c} w={92} badge={price} dim={!!block}/>
+              <button className="btn" disabled={!can} onClick={()=>onBuy(cCode(c),price)} style={{width:"100%",marginTop:"3px",padding:"4px 2px",background:can?"#c8a96e18":"#0d0f18",border:"1px solid "+(can?"#c8a96e55":"#222"),borderRadius:"6px",color:can?C.gold:"#666",fontFamily:"'Cinzel',serif",fontSize:"10px"}}>{block?block:(locked?"Locked":(coins<price?("Need "+price):("Buy "+price)))}</button>
+            </div>
+          ); })}
+      </div>
+      {shown.length===0 && <div style={{...sCard,textAlign:"center",color:C.muted,marginTop:"10px"}}>No cards found.</div>}
+      {list.length>120 && <div style={{textAlign:"center",color:C.muted,fontSize:"12px",marginTop:"12px"}}>Showing first 120 · refine with search or a region.</div>}
+    </div>
+  );
+}
+
+/* ============================================================
    APP
    ============================================================ */
 function App(){
   const [data,setData]=useState(null);
   const [me,setMe]=useState(()=>{ try{return sessionStorage.getItem("at_me")||null;}catch(e){return null;} });
   const [spectator,setSpectator]=useState(false);
+  const [db,setDb]=useState(null);
+  const [starters,setStarters]=useState(null);
+
+  useEffect(()=>{
+    Promise.all([fetch("./cards.json").then(r=>r.json()), fetch("./starter.json").then(r=>r.json())])
+      .then(([cards,st])=>{ setDb(buildDB(cards)); setStarters(st); })
+      .catch(e=>console.error("card data load failed:",e));
+  },[]);
 
   useEffect(()=>{
     if(!CONFIG_OK) return;
@@ -405,7 +584,7 @@ function App(){
   return (
     <div style={{minHeight:"100vh"}}>
       <TopBar me={me} role={role} coins={data.users[me].coins} onLogout={logout}/>
-      {role==="admin" ? <AdminHome data={data} mutate={mutate}/> : <PlayerHome data={data} me={me}/>}
+      {role==="admin" ? <AdminHome data={data} mutate={mutate}/> : (db&&starters ? <PlayerHome data={data} me={me} db={db} starters={starters} mutate={mutate}/> : <Loading/>)}
     </div>
   );
 }
