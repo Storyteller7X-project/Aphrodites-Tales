@@ -764,6 +764,11 @@ function encodeDeck(cards){
 }
 function deckUrl(deck){ const c=encodeDeck(deck||[]); return c?("https://runeterra.ar/decks/code/"+c):null; }
 
+function toLocalDT(ts){ const off=new Date(ts).getTimezoneOffset()*60000; return new Date(ts-off).toISOString().slice(0,16); }
+function StartTimeInput({startTime,onSet}){
+  const [v,setV]=useState(()=>toLocalDT(startTime));
+  return <input type="datetime-local" value={v} onChange={e=>{ setV(e.target.value); const ts=new Date(e.target.value).getTime(); if(!isNaN(ts)) onSet(ts); }} style={{...sInp,width:"auto",flex:1,fontSize:"14px",colorScheme:"dark"}}/>;
+}
 function SignUpForm({onSubmit,me,data}){
   const u=data.users[me]||{};
   const [riot,setRiot]=useState(u.riotId||"");
@@ -789,7 +794,7 @@ function Tournament({data,me,role,mutate}){
   const ci=Object.keys(t.checkin||{});
 
   const [nowTs,setNowTs]=useState(Date.now());
-  useEffect(()=>{ const id=setInterval(()=>setNowTs(Date.now()),15000); return ()=>clearInterval(id); },[]);
+  useEffect(()=>{ const id=setInterval(()=>setNowTs(Date.now()),30000); return ()=>clearInterval(id); },[]);
   function openTournament(){ mutate(d=>{ d.tournament={phase:"signup",server:"EMEA",startTime:Date.now()+2*3600000,signups:{},checkin:{}}; return d; }); }
   function setStart(ts){ mutate(d=>{ d.tournament.startTime=ts; return d; }); }
   function setServer(sv){ mutate(d=>{ d.tournament.server=sv; return d; }); }
@@ -826,8 +831,8 @@ function Tournament({data,me,role,mutate}){
     const reg=me&&su[me]; const inCi=t.checkin&&me&&t.checkin[me];
     const isPlayer=me&&data.users[me]&&data.users[me].role==="player";
     const ciOpen=nowTs>=(t.startTime-3600000);
-    const startLocal=new Date(t.startTime).toLocaleString([], {weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
-    const ciLocal=new Date(t.startTime-3600000).toLocaleString([], {hour:"2-digit",minute:"2-digit"});
+    const startLocal=new Date(t.startTime).toLocaleString("en-US", {weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true});
+    const ciLocal=new Date(t.startTime-3600000).toLocaleString("en-US", {hour:"numeric",minute:"2-digit",hour12:true});
     const mins=Math.round((t.startTime-nowTs)/60000);
     const rel=mins>0?(mins>=60?("in "+Math.floor(mins/60)+"h "+(mins%60)+"m"):("in "+mins+"m")):"now";
     return <div style={wrap} className="fu">
@@ -843,7 +848,7 @@ function Tournament({data,me,role,mutate}){
         <div style={{...sLbl,marginBottom:"10px"}}>Tournament settings</div>
         <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px",flexWrap:"wrap"}}>
           <span style={{fontSize:"12px",color:C.muted,width:"70px"}}>Start time</span>
-          <input type="datetime-local" defaultValue={new Date(t.startTime-new Date(t.startTime).getTimezoneOffset()*60000).toISOString().slice(0,16)} onChange={e=>{ const v=new Date(e.target.value).getTime(); if(v)setStart(v); }} style={{...sInp,width:"auto",flex:1,fontSize:"14px"}}/>
+          <StartTimeInput startTime={t.startTime} onSet={setStart}/>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"12px"}}>
           <span style={{fontSize:"12px",color:C.muted,width:"70px"}}>Server</span>
