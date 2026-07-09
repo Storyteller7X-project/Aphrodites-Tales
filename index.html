@@ -80,6 +80,7 @@ function genPw(){const d="23456789",l="abcdefghjkmnpqrstuvwxyz";const r=a=>a[Mat
 /* ---------- data model (shared, in Firebase) ---------- */
 function freshAdmin(){ return {password:"5r2w",role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 function freshPlayer(pw){ return {password:pw,role:"player",coins:100,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
+function freshTest(){ return {password:"",role:"player",noPassword:true,coins:100,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 
 const SEED = {
   users: { Storyteller: freshAdmin() },
@@ -148,7 +149,7 @@ function Login({data,onLogin,onSpectator,onRegister}){
     if(n==="Spectator"){onSpectator();return;}
     const u=data.users&&data.users[n];
     if(!u){ setErr("Account not found."); return; }
-    if(u.password!==pw){ setErr("Incorrect password."); return; }
+    if(!u.noPassword && u.password!==pw){ setErr("Incorrect password."); return; }
     onLogin(n);
   }
   function doReg(){
@@ -241,6 +242,7 @@ function AdminHome({data,mutate}){
   function newWeek(){ mutate(d=>{ d.week=(d.week||1)+1; d.prepEnded=false; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player") us[n].coins=(us[n].coins||0)+100; }); return d; }); setMsg("New week started. +100 coins to all players."); }
   function delPlayer(n){ mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
   function resetAll(){ mutate(d=>{ const keep={}; Object.keys(d.users||{}).forEach(n=>{ if(d.users[n].role==="admin") keep[n]=d.users[n]; }); d.users=keep; d.pending={}; d.week=1; d.season=1; d.prepEnded=false; d.champion=null; d.tournament={started:false}; return d; }); setResetArm(false); setMsg("All test accounts cleared."); }
+  function makeTests(){ mutate(d=>{ if(!d.users)d.users={}; for(let i=1;i<=8;i++){ d.users["Test"+i]=freshTest(); } d.testSeeded=true; return d; }); setMsg("8 test accounts ready (Test1-Test8, no password)."); }
 
   const tab=(t,label)=>(
     <button key={t} className="btn" onClick={()=>{setAtab(t);setMsg("");setDelArm("");setResetArm(false);}}
@@ -299,6 +301,11 @@ function AdminHome({data,mutate}){
                 </div>
               );
             })}
+          </div>
+          <div style={sCard}>
+            <div style={{...sLbl,marginBottom:"8px"}}>Test accounts</div>
+            <div style={{fontSize:"12px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Creates Test1 - Test8 as players you can log into with no password (just the username). Re-run to reset them to 100 coins and no deck.</div>
+            <button className="btn" onClick={makeTests} style={{width:"100%",padding:"9px",background:"#0d1a2a",border:"1px solid #334466",borderRadius:"8px",color:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600}}>Create / reset 8 test accounts</button>
           </div>
           <div style={{...sCard,borderColor:"#5a2a2a"}}>
             <div style={{...sLbl,marginBottom:"6px",color:"#a66"}}>Danger zone</div>
@@ -556,6 +563,11 @@ function App(){
     const cb = stateRef.on("value", snap=>{
       const val=snap.val();
       if(val===null){ stateRef.set(SEED); return; }
+      if(!val.testSeeded){
+        const nu=JSON.parse(JSON.stringify(val)); if(!nu.users) nu.users={};
+        for(let i=1;i<=8;i++){ const n="Test"+i; if(!nu.users[n]) nu.users[n]=freshTest(); }
+        nu.testSeeded=true; stateRef.set(nu); return;
+      }
       setData(val);
     }, err=>{ console.error("Firebase:",err); });
     return ()=>stateRef.off("value", cb);
