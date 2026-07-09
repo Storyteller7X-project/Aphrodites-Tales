@@ -391,13 +391,23 @@ function Spectator({data,onLeave}){
 const REGIONS=["Demacia","Freljord","Ionia","Noxus","Piltover & Zaun","Shadow Isles","Bilgewater","Shurima","Mount Targon","Bandle City"];
 const REGCOL={Demacia:"#e3c44a",Freljord:"#62c4e8",Ionia:"#ef74b6",Noxus:"#d23b37","Piltover & Zaun":"#e58a26","Shadow Isles":"#2bb56e",Bilgewater:"#1fa8a8",Shurima:"#e0b133","Mount Targon":"#9a72d8","Bandle City":"#a9c24a"};
 const RARCOL=["#8fa3b0","#5b8fd0","#b25fd6","#e0b040"];
+const REGICON={Demacia:"Demacia",Freljord:"Freljord",Ionia:"Ionia",Noxus:"Noxus","Piltover & Zaun":"PiltoverZaun","Shadow Isles":"ShadowIsles",Bilgewater:"Bilgewater",Shurima:"Shurima","Mount Targon":"Targon","Bandle City":"BandleCity"};
+function regIcon(r){ return "https://dd.b.pvp.net/latest/core/en_us/img/regions/icon-"+(REGICON[r]||r)+".png"; }
+function RegBtn({r,on,onClick,small}){
+  return (
+    <button className="btn" onClick={onClick} style={{display:"flex",alignItems:"center",gap:"5px",padding:small?"4px 8px":"7px 12px",background:on?REGCOL[r]+"22":"transparent",border:"1px solid "+(on?REGCOL[r]+"aa":"#333"),borderRadius:"7px",color:on?REGCOL[r]:C.muted,fontFamily:"'Cinzel',serif",fontSize:small?"10.5px":"12px",cursor:"pointer",whiteSpace:"nowrap"}}>
+      <img src={regIcon(r)} alt="" style={{width:small?"15px":"19px",height:small?"15px":"19px",filter:on?"none":"grayscale(1)",opacity:on?1:.55}} onError={e=>{e.target.style.display="none";}}/>
+      {r}
+    </button>
+  );
+}
 const ECON={PACK_COST:1,DECK_FLOOR:10,DECK_MAX:100,MAX_COPIES:3,MAX_CHAMPS:20,PACK_SIZE:5};
 
 function buildDB(cards){
   const by={}; cards.forEach(c=>{ by[c[0]]=c; });
-  const pools={}; REGIONS.forEach(r=>pools[r]=[]);
-  cards.forEach(c=>{ const regs=c[5]||[]; REGIONS.forEach(r=>{ if(regs.indexOf(r)>=0||regs.indexOf("Runeterra ("+r+")")>=0) pools[r].push(c[0]); }); });
-  return {list:cards, by, pools};
+  const pools={}, runeChamps={}; REGIONS.forEach(r=>{pools[r]=[];runeChamps[r]=[];});
+  cards.forEach(c=>{ const regs=c[5]||[]; REGIONS.forEach(r=>{ if(regs.indexOf(r)>=0||regs.indexOf("Runeterra ("+r+")")>=0) pools[r].push(c[0]); if(c[4]===1&&regs.indexOf("Runeterra ("+r+")")>=0) runeChamps[r].push(c[1]); }); });
+  return {list:cards, by, pools, runeChamps};
 }
 const cCode=c=>c[0], cName=c=>c[1], cMana=c=>c[2], cRar=c=>c[3], cChamp=c=>c[4]===1, cRegs=c=>c[5]||[], cCoin=c=>c[6], cImg=c=>c[8]||"";
 function coinOf(db,code){ const c=db.by[code]; return c?cCoin(c):20; }
@@ -536,7 +546,7 @@ function Store({db,deck,coins,locked,onBuy}){
         <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search cards" style={{...sInp,marginBottom:"8px",fontSize:"15px"}}/>
         <div style={{display:"flex",gap:"5px",flexWrap:"wrap"}}>
           <button className="btn" onClick={()=>setReg("all")} style={rTab(reg==="all")}>All</button>
-          {REGIONS.map(r=><button key={r} className="btn" onClick={()=>setReg(r)} style={rTab(reg===r,REGCOL[r])}>{r}</button>)}
+          {REGIONS.map(r=><RegBtn key={r} r={r} on={reg===r} onClick={()=>setReg(r)} small={true}/>)}
         </div>
       </div>
       <div style={{display:"flex",flexWrap:"wrap",gap:"8px"}}>
@@ -557,21 +567,24 @@ function Store({db,deck,coins,locked,onBuy}){
 function Packs({db,deck,coins,locked,onCharge,onKeep}){
   const [reg,setReg]=useState(null);
   const [pack,setPack]=useState(null);
-  function buy(){ if(locked||coins<ECON.PACK_COST||!reg) return; const cards=rollPack(db,db.pools[reg]); onCharge(); setPack({cards,sel:null}); }
+  function buy(){ if(locked||coins<ECON.PACK_COST||!reg) return; const cards=rollPack(db,db.pools[reg]); setPack({cards,sel:null}); onCharge(); }
   function tap(code){ if(deckRuleBlock(db,deck,code)) return; setPack(p=>({...p,sel:p.sel===code?null:code})); }
   function done(){ if(pack&&pack.sel) onKeep(pack.sel); setPack(null); }
+  const rune=reg?(db.runeChamps[reg]||[]):[];
+  const canBuy=!locked&&reg&&coins>=ECON.PACK_COST;
   return (
-    <div style={{padding:"14px 18px",maxWidth:"860px",margin:"0 auto"}} className="fu">
-      <div style={sCard}>
+    <div style={{padding:"14px 18px",maxWidth:"860px",margin:"0 auto"}}>
+      <div className="fu" style={sCard}>
         <div style={{...sLbl,marginBottom:"8px"}}>Open a pack</div>
         <div style={{fontSize:"12px",color:C.muted,lineHeight:1.6,marginBottom:"12px"}}>Pick a region and open a pack for {ECON.PACK_COST} coin. It reveals {ECON.PACK_SIZE} cards (cheaper cards appear more often). You keep up to one; the coin is spent either way. {locked?"Locked for the matchday.":""}</div>
-        <div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"12px"}}>
-          {REGIONS.map(r=><button key={r} className="btn" onClick={()=>setReg(r)} style={rTab(reg===r,REGCOL[r])}>{r}</button>)}
+        <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"10px"}}>
+          {REGIONS.map(r=><RegBtn key={r} r={r} on={reg===r} onClick={()=>setReg(r)}/>)}
         </div>
-        <button className="btn" disabled={locked||!reg||coins<ECON.PACK_COST} onClick={buy} style={{width:"100%",padding:"13px",background:(!locked&&reg&&coins>=ECON.PACK_COST)?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"10px",color:(!locked&&reg&&coins>=ECON.PACK_COST)?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:900,letterSpacing:".05em"}}>{!reg?"Pick a region":(locked?"Locked":(coins<ECON.PACK_COST?"Not enough coins":("Open "+reg+" pack ("+ECON.PACK_COST+" coin)")))}</button>
+        {reg && rune.length>0 && <div style={{fontSize:"11.5px",color:C.muted,marginBottom:"12px"}}>Runeterra {rune.length>1?"champions":"champion"} in {reg}: <strong style={{color:REGCOL[reg]}}>{rune.join(", ")}</strong></div>}
+        <button className="btn" disabled={!canBuy} onClick={buy} style={{width:"100%",padding:"13px",background:canBuy?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"10px",color:canBuy?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:900,letterSpacing:".05em"}}>{!reg?"Pick a region":(locked?"Locked":(coins<ECON.PACK_COST?"Not enough coins":("Open "+reg+" pack ("+ECON.PACK_COST+" coin)")))}</button>
       </div>
-      {pack && ReactDOM.createPortal(
-        <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(4,6,12,.93)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"20px",overflow:"auto"}}>
+      {pack && (
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9000,background:"rgba(4,6,12,.94)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"20px",overflowY:"auto"}}>
           <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"16px",fontWeight:600,marginBottom:"3px",letterSpacing:".05em"}}>{reg} pack</div>
           <div style={{fontSize:"12px",color:C.muted,marginBottom:"18px"}}>Keep up to one card.</div>
           <div style={{display:"flex",gap:"10px",flexWrap:"wrap",justifyContent:"center",maxWidth:"820px"}}>
@@ -586,7 +599,8 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
               ); })}
           </div>
           <button className="btn" onClick={done} style={{marginTop:"22px",padding:"11px 26px",background:pack.sel?"linear-gradient(135deg,#c8a96e,#9a7440)":"transparent",border:"1px solid "+(pack.sel?"transparent":"#444"),borderRadius:"9px",color:pack.sel?C.bg:C.muted,fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:pack.sel?900:400}}>{pack.sel?("Add "+cName(db.by[pack.sel])+" to deck"):"Take nothing"}</button>
-        </div>, document.body)}
+        </div>
+      )}
     </div>
   );
 }
