@@ -68,6 +68,7 @@ if (CONFIG_OK) {
 }
 
 /* ---------- theme ---------- */
+const BUILD = "build 4 · packs+logos";
 const C = {bg:"#060810",surface:"#0d0f18",dim:"#0a0c14",gold:"#c8a96e",text:"#e8d5b0",muted:"#7c715b",faint:"#3a3a3a"};
 const sCard={background:C.surface,border:"1px solid #c8a96e28",borderRadius:"12px",padding:"18px"};
 const sLbl={fontFamily:"'Cinzel',serif",fontSize:"11px",color:C.muted,letterSpacing:".1em",textTransform:"uppercase"};
@@ -174,7 +175,7 @@ function Login({data,onLogin,onSpectator,onRegister}){
   return (
     <div style={wrap}>
       <div className="glow" style={{fontFamily:"'Cinzel',serif",fontSize:"clamp(22px,5vw,40px)",fontWeight:900,color:C.gold,textAlign:"center",letterSpacing:".12em",marginBottom:"6px"}}>APHRODITE'S TALES</div>
-      <div style={{...sLbl,marginBottom:"30px",letterSpacing:".3em",textAlign:"center"}}>Powered by Storyteller</div>
+      <div style={{...sLbl,marginBottom:"30px",letterSpacing:".3em",textAlign:"center"}}>Powered by Storyteller · <span style={{color:"#6ac68a"}}>{BUILD}</span></div>
       <div className="fu" style={{width:"100%",maxWidth:"400px",display:"flex",flexDirection:"column",gap:"13px"}}>
         {mode==="login" ? (
           <React.Fragment>
@@ -215,7 +216,7 @@ function TopBar({me,role,coins,onLogout}){
     <div style={{background:"#090b13",borderBottom:"1px solid #c8a96e1a",padding:"10px 18px",position:"sticky",top:0,zIndex:50,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div>
         <div style={{fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900,color:C.gold,letterSpacing:".1em"}}>APHRODITE'S TALES</div>
-        <div style={{fontSize:"11px",color:C.muted,marginTop:"1px"}}>{me}{role==="admin"?" · Admin":""}</div>
+        <div style={{fontSize:"11px",color:C.muted,marginTop:"1px"}}>{me}{role==="admin"?" · Admin":""} · <span style={{color:"#6ac68a"}}>{BUILD}</span></div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
         {role!=="admin" && <div style={{display:"flex",alignItems:"center",gap:"6px",background:"#c8a96e15",border:"1px solid #c8a96e44",borderRadius:"20px",padding:"4px 13px",fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"14px",fontWeight:600}}>{coins||0} coins</div>}
