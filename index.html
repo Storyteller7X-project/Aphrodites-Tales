@@ -718,6 +718,27 @@ function pairRound(sorted,rec){
   while(pool.length>1){ const a=pool.shift(); let idx=pool.findIndex(b=>!(rec[a].opps||[]).includes(b)); if(idx<0)idx=0; const b=pool.splice(idx,1)[0]; matches.push({a,b,winner:null,confirmed:false,report:null}); }
   return matches;
 }
+const TRI_DEPS={ B1:[["l","A1"],["w","A2"]], B2:[["l","A2"],["w","A3"]], B3:[["w","A4"],["l","A3"]], C1:[["l","B1"],["w","B2"]], C2:[["l","B2"],["w","B3"]], D1:[["l","C1"],["w","C2"]] };
+const TRI_ROUNDS=[["A1","A2","A3","A4"],["B1","B2","B3"],["C1","C2"],["D1"]];
+function triRes(m,side){ if(!m||!m.confirmed)return null; return side==="w"?m.winner:(m.winner===m.a?m.b:m.a); }
+function seedTri(S){
+  const s=S.slice(0,8); while(s.length<8)s.push(null); const tri={};
+  [["A1",0,1],["A2",2,3],["A3",4,5],["A4",6,7]].forEach(([k,i,j])=>tri[k]={a:s[i]||null,b:s[j]||null,winner:null,confirmed:false,report:null});
+  ["B1","B2","B3","C1","C2","D1"].forEach(k=>tri[k]={a:null,b:null,winner:null,confirmed:false,report:null});
+  ["A1","A2","A3","A4"].forEach(k=>{const m=tri[k]; if(m.a&&!m.b){m.winner=m.a;m.confirmed=true;} else if(!m.a&&m.b){m.winner=m.b;m.confirmed=true;}});
+  triRecompute(tri); return tri;
+}
+function triRecompute(tri){
+  let ch=true;
+  while(ch){ ch=false;
+    for(const k in TRI_DEPS){ if(tri[k].confirmed)continue; const [d1,d2]=TRI_DEPS[k]; const s1=tri[d1[1]],s2=tri[d2[1]];
+      if(s1.confirmed&&s2.confirmed){ const a=triRes(s1,d1[0]),b=triRes(s2,d2[0]); tri[k].a=a; tri[k].b=b;
+        if(a&&!b){tri[k].winner=a;tri[k].confirmed=true;ch=true;} else if(!a&&b){tri[k].winner=b;tri[k].confirmed=true;ch=true;} else if(!a&&!b){tri[k].winner=null;tri[k].confirmed=true;ch=true;} }
+      else { tri[k].a=null; tri[k].b=null; } } }
+}
+function triW(tri,k){ return tri[k]&&tri[k].confirmed?tri[k].winner:null; }
+function triL(tri,k){ return triRes(tri[k],"l"); }
+function triPlacements(tri){ return {1:triW(tri,"A1"),2:triW(tri,"D1"),3:triL(tri,"D1"),4:triW(tri,"C1")}; }
 
 function Tournament({data,me,role,mutate}){
   const t=data.tournament||{phase:"idle"};
@@ -737,6 +758,11 @@ function Tournament({data,me,role,mutate}){
   function reset(){ mutate(d=>{ d.tournament={phase:"idle"}; return d; }); }
   function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="checkin")return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; return d; }); }
   function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed)return d; mm.report={winner,by:me}; return d; }); }
+  function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players,tt.rounds); const ord=standing(tt.players,rc); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
+  function reportTri(k,winner){ mutate(d=>{ const mm=d.tournament.tri[k]; if(mm.confirmed)return d; mm.report={winner,by:me}; return d; }); }
+  function confirmTri(k){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(!mm.report)return d; mm.winner=mm.report.winner; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); } return d; }); }
+  function setTriWinner(k,w){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; mm.winner=w; mm.confirmed=true; mm.report={winner:w,by:"admin"}; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); } return d; }); }
+  function awardAP(){ mutate(d=>{ const pl=d.tournament.placements||{}; const pts={1:5,2:3,3:2,4:1}; [1,2,3,4].forEach(k=>{ const u=pl[k]; if(u&&d.users[u]) d.users[u].aphro=(d.users[u].aphro||0)+pts[k]; }); d.tournament.awarded=true; return d; }); }
 
   const box={...sCard,marginBottom:"12px"};
   const wrap={padding:"14px 18px",maxWidth:"720px",margin:"0 auto"};
@@ -772,6 +798,60 @@ function Tournament({data,me,role,mutate}){
     </div>;
   }
 
+  if(t.phase==="triangle" || t.phase==="done"){
+    const tri=t.tri||{};
+    const nm=n=>n||"-";
+    const mRow=(k)=>{ const m=tri[k]; if(!m) return null; const ready=m.a&&m.b; const mine=me&&(m.a===me||m.b===me); const rep=m.report;
+      return (
+        <div key={k} style={{padding:"9px 0",borderBottom:"1px solid #c8a96e10"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px"}}>
+            <div style={{fontSize:"13.5px",color:C.text}}><span style={{fontFamily:"'Cinzel',serif",color:C.muted,fontSize:"11px",marginRight:"7px"}}>{k}</span><strong style={{color:m.confirmed&&m.winner===m.a?"#6ac68a":C.text}}>{nm(m.a)}</strong> <span style={{color:C.muted,fontSize:"12px"}}>vs</span> <strong style={{color:m.confirmed&&m.winner===m.b?"#6ac68a":C.text}}>{nm(m.b)}</strong></div>
+            {!ready ? <span style={{fontSize:"11px",color:"#4a4a4a"}}>waiting</span>
+              : m.confirmed ? <span style={{fontSize:"12px",color:"#6ac68a",fontFamily:"'Cinzel',serif"}}>{m.winner} won</span>
+              : rep ? <span style={{fontSize:"11.5px",color:"#e0b040",fontFamily:"'Cinzel',serif"}}>pending: {rep.winner}</span>
+              : <span style={{fontSize:"11.5px",color:C.muted}}>not reported</span>}
+          </div>
+          {ready&&mine&&!m.confirmed&&<div style={{display:"flex",gap:"7px",marginTop:"7px"}}>
+            <button className="btn" onClick={()=>reportTri(k,me)} style={{flex:1,padding:"7px",background:rep&&rep.winner===me?"#0d1a12":"#0d0f18",border:"1px solid "+(rep&&rep.winner===me?"#2a5a3a":"#333"),borderRadius:"7px",color:rep&&rep.winner===me?"#6ac68a":C.text,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>I won</button>
+            <button className="btn" onClick={()=>reportTri(k,m.a===me?m.b:m.a)} style={{flex:1,padding:"7px",background:"#0d0f18",border:"1px solid #333",borderRadius:"7px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>I lost</button>
+          </div>}
+          {ready&&isAdmin&&!m.confirmed&&<div style={{display:"flex",gap:"6px",marginTop:"7px"}}>
+            {rep&&<button className="btn" onClick={()=>confirmTri(k)} style={{padding:"6px 12px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"6px",color:"#8c8",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Confirm {rep.winner}</button>}
+            <button className="btn" onClick={()=>setTriWinner(k,m.a)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"11px"}}>{m.a} won</button>
+            <button className="btn" onClick={()=>setTriWinner(k,m.b)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"11px"}}>{m.b} won</button>
+          </div>}
+        </div>
+      ); };
+    const pl=t.placements||{};
+    return <div style={wrap} className="fu">
+      <div style={{...box,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div><div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"15px",fontWeight:600}}>Triangle bracket</div><div style={{fontSize:"12px",color:C.muted}}>{t.phase==="done"?"Complete":"Top 8 from Swiss"}</div></div>
+        {isAdmin&&<button className="btn" onClick={reset} style={{padding:"9px 12px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"8px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Reset</button>}
+      </div>
+      {t.champion&&<div style={{...box,textAlign:"center",background:"#1a1400",borderColor:"#c8a96e66"}}>
+        <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"12px",letterSpacing:".2em",marginBottom:"4px"}}>CHAMPION</div>
+        <div className="glow" style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"24px",fontWeight:900}}>{t.champion}</div>
+      </div>}
+      {TRI_ROUNDS.map((rd,i)=>(
+        <div key={i} style={box}>
+          <div style={{...sLbl,marginBottom:"8px"}}>{["Round A","Round B","Round C","Final (D)"][i]}</div>
+          {rd.map(mRow)}
+        </div>
+      ))}
+      {t.phase==="done"&&<div style={box}>
+        <div style={{...sLbl,marginBottom:"10px"}}>Final placements · Aphrodite Points</div>
+        {[1,2,3,4].map(k=>(<div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
+          <span style={{fontSize:"13px",color:C.text}}><strong style={{color:C.gold}}>{k}.</strong> {pl[k]||"-"}</span>
+          <span style={{fontSize:"12px",color:C.muted,fontFamily:"'Cinzel',serif"}}>+{({1:5,2:3,3:2,4:1})[k]} AP</span>
+        </div>))}
+        {isAdmin&&(t.awarded
+          ? <div style={{marginTop:"10px",fontSize:"12px",color:"#6ac68a",fontFamily:"'Cinzel',serif",textAlign:"center"}}>Aphrodite Points awarded</div>
+          : <button className="btn" onClick={awardAP} style={{width:"100%",marginTop:"12px",padding:"11px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900}}>Award Aphrodite Points (5/3/2/1)</button>)}
+        {isAdmin&&<div style={{fontSize:"10.5px",color:"#5a5347",marginTop:"8px",textAlign:"center"}}>Verify placements 2-4 match your bracket before awarding.</div>}
+      </div>}
+    </div>;
+  }
+
   // swiss
   const cur=rounds[t.round-1]||{matches:[]};
   const allDone=cur.matches.every(m=>m.confirmed);
@@ -782,7 +862,7 @@ function Tournament({data,me,role,mutate}){
       {isAdmin&&<div style={{display:"flex",gap:"7px"}}>
         {t.round<t.totalRounds
           ? <button className="btn" disabled={!allDone} onClick={nextRound} style={{padding:"9px 15px",background:allDone?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"8px",color:allDone?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:700}}>Next round</button>
-          : <span style={{fontSize:"12px",color:allDone?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif",alignSelf:"center"}}>{allDone?"Swiss complete":"Finish all matches"}</span>}
+          : (allDone?<button className="btn" onClick={startTriangle} style={{padding:"9px 15px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"8px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:900}}>Start Triangle</button>:<span style={{fontSize:"12px",color:C.muted,fontFamily:"'Cinzel',serif",alignSelf:"center"}}>Finish all matches</span>)}
         <button className="btn" onClick={reset} style={{padding:"9px 12px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"8px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Reset</button>
       </div>}
     </div>
