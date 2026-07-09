@@ -19,6 +19,22 @@
   .pullbanner{animation:pullpop .55s ease .35s backwards}
   @keyframes burst{0%{opacity:.9;transform:scale(.2)}100%{opacity:0;transform:scale(2.4)}}
   .burst{animation:burst .7s ease forwards}
+  @keyframes pkflash{0%{opacity:0}7%{opacity:.95}100%{opacity:0}}
+  @keyframes pkray{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+  @keyframes pkrayfade{0%{opacity:0}25%{opacity:.55}100%{opacity:.3}}
+  @keyframes pkburst{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}10%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(1)}}
+  @keyframes pkcard{0%{opacity:0;transform:translateY(46px) scale(.45) rotateY(85deg)}55%{opacity:1;transform:translateY(-10px) scale(1.09) rotateY(0)}100%{opacity:1;transform:translateY(0) scale(1) rotateY(0)}}
+  @keyframes glowpulse{0%,100%{box-shadow:0 0 15px var(--gc)}50%{box-shadow:0 0 38px var(--gc)}}
+  @keyframes pkshake{0%,100%{transform:translate(0,0)}15%{transform:translate(-9px,5px)}30%{transform:translate(8px,-6px)}45%{transform:translate(-6px,4px)}60%{transform:translate(5px,-3px)}80%{transform:translate(-3px,2px)}}
+  @keyframes pkbanner{0%{opacity:0;transform:scale(.3) rotate(-7deg)}60%{transform:scale(1.22) rotate(2deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+  @keyframes pkfloat{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
+  .pk-flash{animation:pkflash .65s ease forwards}
+  .pk-ray{animation:pkray 16s linear infinite,pkrayfade 1s ease forwards}
+  .pk-particle{animation:pkburst .95s cubic-bezier(.15,.7,.4,1) forwards}
+  .pk-card{animation:pkcard .62s cubic-bezier(.2,.8,.3,1.35) backwards}
+  .pk-shake{animation:pkshake .6s ease}
+  .pk-banner{animation:pkbanner .62s cubic-bezier(.2,.8,.3,1.45) .25s backwards}
+  .pk-btns{animation:pkfloat .5s ease 1.35s backwards}
   ::-webkit-scrollbar{width:5px}
   ::-webkit-scrollbar-thumb{background:#c8a96e44;border-radius:3px}
   @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
@@ -413,6 +429,21 @@ const REGCOL={Demacia:"#e3c44a",Freljord:"#62c4e8",Ionia:"#ef74b6",Noxus:"#d23b3
 const RARCOL=["#8fa3b0","#5b8fd0","#b25fd6","#e0b040"];
 const REGICON={Demacia:"demacia",Freljord:"freljord",Ionia:"ionia",Noxus:"noxus","Piltover & Zaun":"piltoverzaun","Shadow Isles":"shadowisles",Bilgewater:"bilgewater",Shurima:"shurima","Mount Targon":"targon","Bandle City":"bandlecity"};
 function regIcon(r){ return "https://dd.b.pvp.net/latest/core/en_us/img/regions/icon-"+(REGICON[r]||r.toLowerCase().replace(/[^a-z]/g,""))+".png"; }
+var _atx=null;
+function packSfx(rars){
+  try{
+    if(!_atx) _atx=new (window.AudioContext||window.webkitAudioContext)();
+    var ac=_atx; if(ac.state==="suspended") ac.resume();
+    var now=ac.currentTime;
+    function tone(type,f,at,dur,vol){ var o=ac.createOscillator(),g=ac.createGain(); o.type=type; o.frequency.value=f; g.gain.setValueAtTime(0.0001,at); g.gain.exponentialRampToValueAtTime(vol,at+0.02); g.gain.exponentialRampToValueAtTime(0.0001,at+dur); o.connect(g).connect(ac.destination); o.start(at); o.stop(at+dur+0.03); }
+    var o=ac.createOscillator(),g=ac.createGain(); o.type="sawtooth"; o.frequency.setValueAtTime(85,now); o.frequency.exponentialRampToValueAtTime(430,now+0.45); g.gain.setValueAtTime(0.0001,now); g.gain.exponentialRampToValueAtTime(0.05,now+0.05); g.gain.exponentialRampToValueAtTime(0.0001,now+0.5); o.connect(g).connect(ac.destination); o.start(now); o.stop(now+0.55);
+    var scale=[0,2,4,7,9];
+    for(var i=0;i<rars.length;i++){ var f=523.25*Math.pow(2,scale[i%5]/12); tone("sine",f,now+0.55+i*0.15,0.22,0.07+(rars[i]>=2?0.03:0)); }
+    var best=Math.max.apply(null,rars);
+    if(best>=3){ [523,659,784,1047,1319].forEach(function(f,j){ tone("triangle",f,now+1.35+j*0.07,0.75,0.075); }); }
+    else if(best>=2){ [523,659,784].forEach(function(f,j){ tone("triangle",f,now+1.35+j*0.07,0.5,0.06); }); }
+  }catch(e){}
+}
 function RegionLogo({r,size}){
   const [ok,setOk]=useState(true);
   if(ok) return <img src={regIcon(r)} alt="" style={{width:size,height:size,objectFit:"contain",filter:"drop-shadow(0 0 7px "+REGCOL[r]+"77)"}} onError={()=>setOk(false)}/>;
@@ -606,10 +637,18 @@ function Store({db,deck,coins,locked,onBuy}){
 
 function Packs({db,deck,coins,locked,onCharge,onKeep}){
   const [pack,setPack]=useState(null);
-  function open(r){ if(locked||coins<ECON.PACK_COST) return; const cards=rollPack(db,db.pools[r]); setPack({reg:r,cards,sel:null}); onCharge(); }
+  function open(r){
+    if(locked||coins<ECON.PACK_COST) return;
+    const cards=rollPack(db,db.pools[r]);
+    const parts=[]; for(let i=0;i<28;i++){ const a=Math.random()*6.2832,d=110+Math.random()*320; parts.push({tx:(Math.cos(a)*d).toFixed(0),ty:(Math.sin(a)*d).toFixed(0),s:(3+Math.random()*6).toFixed(1),dl:(Math.random()*0.12).toFixed(2)}); }
+    setPack({reg:r,cards,sel:null,parts});
+    onCharge();
+    packSfx(cards.map(code=>{const c=db.by[code];return c?cRar(c):0;}));
+  }
   function tap(code){ if(deckRuleBlock(db,deck,code)) return; setPack(p=>({...p,sel:p.sel===code?null:code})); }
   function done(){ if(pack&&pack.sel) onKeep(pack.sel); setPack(null); }
   const bestRar=pack?Math.max.apply(null,pack.cards.map(code=>{const c=db.by[code];return c?cRar(c):0;})):0;
+  const rayCol=bestRar>=3?"#ffcc44":bestRar>=2?"#c060d0":(pack?REGCOL[pack.reg]:"#c8a96e");
   return (
     <div style={{padding:"18px",maxWidth:"940px",margin:"0 auto"}}>
       <div className="fu">
@@ -630,24 +669,29 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
         </div>
       </div>
       {pack && (
-        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9000,background:"radial-gradient(ellipse at 50% 42%,"+REGCOL[pack.reg]+"26,rgba(4,6,12,.97) 62%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"22px",overflowY:"auto"}}>
-          <div className="burst" style={{position:"absolute",top:"38%",width:"260px",height:"260px",borderRadius:"50%",background:"radial-gradient(circle,"+REGCOL[pack.reg]+"55,transparent 68%)",pointerEvents:"none"}}/>
-          {bestRar>=2 && <div className="pullbanner" style={{fontFamily:"'Cinzel',serif",color:bestRar>=3?"#ffd76a":"#d98cff",fontSize:"clamp(20px,4.5vw,30px)",fontWeight:900,letterSpacing:".12em",marginBottom:"8px",textShadow:"0 0 26px "+(bestRar>=3?"#ffcc44aa":"#c060d0aa")}}>{bestRar>=3?"CHAMPION PULL":"EPIC PULL"}</div>}
-          <div style={{fontFamily:"'Cinzel',serif",color:REGCOL[pack.reg],fontSize:"16px",fontWeight:600,marginBottom:"2px",letterSpacing:".05em",position:"relative"}}>{pack.reg}</div>
-          <div style={{fontSize:"13.5px",color:C.muted,marginBottom:"22px",position:"relative"}}>Keep one card.</div>
+        <div className={"pk-overlay"+(bestRar>=3?" pk-shake":"")} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9000,background:"radial-gradient(ellipse at 50% 42%,"+REGCOL[pack.reg]+"1f,rgba(3,4,10,.98) 60%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"22px",overflow:"hidden"}}>
+          <div className="pk-ray" style={{position:"absolute",top:"42%",left:"50%",width:"230vmax",height:"230vmax",background:"repeating-conic-gradient(from 0deg,"+rayCol+"00 0deg,"+rayCol+"26 1.1deg,"+rayCol+"00 2.6deg,"+rayCol+"00 11deg)",pointerEvents:"none"}}/>
+          <div className="pk-flash" style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"radial-gradient(circle at 50% 42%,#ffffff,"+rayCol+"aa 26%,transparent 58%)",pointerEvents:"none"}}/>
+          {pack.parts.map((p,i)=><div key={i} className="pk-particle" style={{position:"absolute",top:"42%",left:"50%",width:p.s+"px",height:p.s+"px",borderRadius:"50%",background:rayCol,boxShadow:"0 0 9px "+rayCol,"--tx":p.tx+"px","--ty":p.ty+"px",animationDelay:p.dl+"s",pointerEvents:"none"}}/>)}
+          {bestRar>=2 && <div className="pk-banner" style={{position:"relative",fontFamily:"'Cinzel',serif",color:bestRar>=3?"#ffd76a":"#e6a6ff",fontSize:"clamp(22px,5.5vw,36px)",fontWeight:900,letterSpacing:".14em",marginBottom:"10px",textShadow:"0 0 32px "+(bestRar>=3?"#ffcc44":"#c060d0")}}>{bestRar>=3?"CHAMPION PULL":"EPIC PULL"}</div>}
+          <div style={{position:"relative",fontFamily:"'Cinzel',serif",color:REGCOL[pack.reg],fontSize:"15px",fontWeight:600,letterSpacing:".05em",marginBottom:"18px"}}>{pack.reg}</div>
           <div style={{display:"flex",gap:"12px",flexWrap:"wrap",justifyContent:"center",maxWidth:"880px",position:"relative"}}>
-            {pack.cards.map((code,i)=>{ const c=db.by[code]; if(!c) return null; const block=deckRuleBlock(db,deck,code); const on=pack.sel===code; const rc=RARCOL[cRar(c)];
+            {pack.cards.map((code,i)=>{ const c=db.by[code]; if(!c)return null; const block=deckRuleBlock(db,deck,code); const on=pack.sel===code; const rc=RARCOL[cRar(c)]; const rare=cRar(c)>=2;
               return (
-                <div key={i} onClick={()=>tap(code)} className={block?"revealcard":"revealcard btn"} style={{width:"144px",cursor:block?"not-allowed":"pointer",transform:on?"translateY(-10px)":"none",transition:"transform .18s",animationDelay:(i*0.13)+"s"}}>
-                  <div style={{borderRadius:"11px",overflow:"hidden",border:"2px solid "+(on?C.gold:block?"#a44a4a55":rc+"88"),boxShadow:on?"0 0 32px #c8a96e":(cRar(c)>=2?"0 0 22px "+rc+"99":"none"),opacity:block?0.4:1}}>
-                    <img src={cImg(c)} alt={cName(c)} style={{width:"100%",display:"block"}} onError={e=>{e.target.style.opacity=0;}}/>
+                <div key={i} className="pk-card" style={{animationDelay:(0.5+i*0.15)+"s",width:"142px"}}>
+                  <div onClick={()=>tap(code)} className={block?"":"btn"} style={{cursor:block?"not-allowed":"pointer",transform:on?"translateY(-12px)":"none",transition:"transform .18s"}}>
+                    <div style={{borderRadius:"11px",overflow:"hidden",border:"2px solid "+(on?C.gold:block?"#a44a4a55":rc+"aa"),opacity:block?0.4:1,"--gc":(on?C.gold:rc)+(rare?"cc":"66"),boxShadow:on?"0 0 30px #c8a96e":(rare?"0 0 20px "+rc+"99":"none"),animation:(rare&&!block)?("glowpulse 1.7s ease "+(1.1+i*0.15).toFixed(2)+"s infinite"):"none"}}>
+                      <img src={cImg(c)} alt={cName(c)} style={{width:"100%",display:"block"}} onError={e=>{e.target.style.opacity=0;}}/>
+                    </div>
+                    <div style={{fontSize:"11px",textAlign:"center",marginTop:"4px",color:block?"#e07a7a":"#9c917b"}}>{block?block:(cCoin(c)+" coins")}</div>
                   </div>
-                  <div style={{fontSize:"11px",textAlign:"center",marginTop:"4px",color:block?"#e07a7a":"#9c917b"}}>{block?block:(cCoin(c)+" coins")}</div>
                 </div>
               ); })}
           </div>
-          <button className="btn" onClick={done} style={{marginTop:"26px",padding:"13px 30px",background:pack.sel?"linear-gradient(135deg,#c8a96e,#9a7440)":"transparent",border:"1px solid "+(pack.sel?"transparent":"#555"),borderRadius:"10px",color:pack.sel?C.bg:C.text,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:pack.sel?900:600,position:"relative"}}>{pack.sel?("Add "+cName(db.by[pack.sel])+" to deck"):"Take nothing"}</button>
-          {!locked && coins>=ECON.PACK_COST && pack.sel && <button className="btn" onClick={()=>{const r=pack.reg; done(); setTimeout(()=>open(r),120);}} style={{marginTop:"10px",padding:"7px 16px",background:"transparent",border:"1px solid "+REGCOL[pack.reg]+"66",borderRadius:"8px",color:REGCOL[pack.reg],fontFamily:"'Cinzel',serif",fontSize:"12px",position:"relative"}}>Keep &amp; open another ({coins} coins left)</button>}
+          <div className="pk-btns" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"11px",marginTop:"26px",position:"relative"}}>
+            <button className="btn" onClick={done} style={{padding:"13px 30px",background:pack.sel?"linear-gradient(135deg,#c8a96e,#9a7440)":"transparent",border:"1px solid "+(pack.sel?"transparent":"#555"),borderRadius:"10px",color:pack.sel?C.bg:C.text,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:pack.sel?900:600}}>{pack.sel?("Add "+cName(db.by[pack.sel])+" to deck"):"Take nothing"}</button>
+            {!locked && coins>=ECON.PACK_COST && <button className="btn" onClick={()=>{const r=pack.reg; done(); setTimeout(()=>open(r),150);}} style={{padding:"12px 28px",background:"linear-gradient(135deg,"+REGCOL[pack.reg]+"dd,"+REGCOL[pack.reg]+"88)",border:"none",borderRadius:"10px",color:"#0a0c14",fontFamily:"'Cinzel',serif",fontSize:"13.5px",fontWeight:900,letterSpacing:".05em",boxShadow:"0 0 22px "+REGCOL[pack.reg]+"66"}}>Open another ({coins} coins)</button>}
+          </div>
         </div>
       )}
     </div>
