@@ -115,7 +115,7 @@ const SEED = {
   week: 1,
   prepEnded: false,     // false = Prep Time (players can edit), true = locked for matchday
   champion: null,
-  tournament: { started:false },
+  tournament: { phase:"idle" },
 };
 
 /* ============================================================
@@ -264,7 +264,7 @@ function TopBar({me,role,coins,onLogout}){
 /* ============================================================
    ADMIN HOME (foundation: approvals + roster + prep phase)
    ============================================================ */
-function AdminHome({data,mutate}){
+function AdminHome({data,mutate,me}){
   const [atab,setAtab]=useState("home");
   const [msg,setMsg]=useState("");
   const [delArm,setDelArm]=useState("");
@@ -351,12 +351,7 @@ function AdminHome({data,mutate}){
         </React.Fragment>
       )}
 
-      {atab==="bracket" && (
-        <div style={{...sCard,textAlign:"center"}}>
-          <div style={{...sLbl,marginBottom:"8px"}}>Tournament</div>
-          <div style={{fontSize:"13px",color:C.muted,lineHeight:1.7}}>The Swiss → Triangle bracket, check-in, and match reporting are being built next. Once ready, you'll run the whole tournament from here.</div>
-        </div>
-      )}
+      {atab==="bracket" && <Tournament data={data} me={me} role="admin" mutate={mutate}/>}
 
       {msg && <div style={{padding:"10px 14px",background:"#0a1a0a",border:"1px solid #3a6a3a",borderRadius:"8px",color:"#8c8",fontSize:"13px",fontFamily:"'Cinzel',serif"}}>{msg}</div>}
     </div>
@@ -387,11 +382,12 @@ function PlayerHome({data,me,db,starters,mutate}){
     <div>
       {locked && <div style={{background:"#1a1400",borderBottom:"1px solid #c8a96e33",padding:"7px",textAlign:"center",fontFamily:"'Cinzel',serif",fontSize:"11.5px",color:C.gold}}>Prep Time is over. Your deck is locked for the matchday.</div>}
       <div style={{display:"flex",background:"#090b12",borderBottom:"1px solid #c8a96e1a",position:"sticky",top:0,zIndex:40}}>
-        {tb("deck","My Deck")}{tb("store","Store")}{tb("packs","Buy Packs")}
+        {tb("deck","My Deck")}{tb("store","Store")}{tb("packs","Buy Packs")}{tb("tourney","Tournament")}
       </div>
       {tab==="deck" && <DeckView db={db} deck={deck} locked={locked} coins={coins} onRemove={removeCards}/>}
       {tab==="store" && <Store db={db} deck={deck} coins={coins} locked={locked} onBuy={buyCard}/>}
       {tab==="packs" && <Packs db={db} deck={deck} coins={coins} locked={locked} onCharge={chargePack} onKeep={keepPack}/>}
+      {tab==="tourney" && <Tournament data={data} me={me} role="player" mutate={mutate}/>}
     </div>
   );
 }
@@ -416,6 +412,7 @@ function Spectator({data,onLeave}){
             <div style={{fontSize:"12px",color:C.muted}}>{(data.users[n].aphro||0)} AP</div>
           </div>
         ))}
+        <Tournament data={data} me={null} role="spectator" mutate={()=>{}}/>
       </div>
     </div>
   );
@@ -699,6 +696,142 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
 }
 
 /* ============================================================
+   TOURNAMENT (check-in + Swiss)
+   ============================================================ */
+function swissRounds(n){ return Math.max(1, Math.ceil(Math.log2(Math.max(2,n)))+1); }
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const x=a[i]; a[i]=a[j]; a[j]=x; } return a; }
+function computeRecords(players,rounds){
+  const rec={}; players.forEach(p=>rec[p]={w:0,l:0,opps:[],bye:false});
+  (rounds||[]).forEach(rd=>(rd.matches||[]).forEach(m=>{ if(!m.confirmed) return;
+    if(m.bye){ if(rec[m.a]){rec[m.a].w++; rec[m.a].bye=true;} return; }
+    const w=m.winner, l=(m.a===w?m.b:m.a);
+    if(rec[w])rec[w].w++; if(rec[l])rec[l].l++;
+    if(rec[m.a])rec[m.a].opps.push(m.b); if(rec[m.b])rec[m.b].opps.push(m.a);
+  }));
+  return rec;
+}
+function buch(u,rec){ return (rec[u]&&rec[u].opps||[]).reduce((s,o)=>s+(rec[o]?rec[o].w:0),0); }
+function standing(players,rec){ return players.slice().sort((x,y)=>((rec[y].w-rec[y].l)-(rec[x].w-rec[x].l))||(rec[y].w-rec[x].w)||(buch(y,rec)-buch(x,rec))||x.localeCompare(y)); }
+function pairRound(sorted,rec){
+  let pool=sorted.slice(); const matches=[];
+  if(pool.length%2===1){ let bi=-1; for(let i=pool.length-1;i>=0;i--){ if(!rec[pool[i]].bye){bi=i;break;} } if(bi<0)bi=pool.length-1; const bye=pool.splice(bi,1)[0]; matches.push({a:bye,b:null,winner:bye,confirmed:true,bye:true,report:null}); }
+  while(pool.length>1){ const a=pool.shift(); let idx=pool.findIndex(b=>!(rec[a].opps||[]).includes(b)); if(idx<0)idx=0; const b=pool.splice(idx,1)[0]; matches.push({a,b,winner:null,confirmed:false,report:null}); }
+  return matches;
+}
+
+function Tournament({data,me,role,mutate}){
+  const t=data.tournament||{phase:"idle"};
+  const isAdmin=role==="admin";
+  const players=t.players||[];
+  const rounds=t.rounds||[];
+  const rec=computeRecords(players,rounds);
+  const stand=standing(players,rec);
+  const ci=Object.keys(t.checkin||{});
+
+  function openCheckin(){ mutate(d=>{ d.tournament={phase:"checkin",checkin:{},players:[]}; return d; }); }
+  function startSwiss(){ mutate(d=>{ const list=Object.keys(d.tournament.checkin||{}); if(list.length<2)return d; const R=swissRounds(list.length); const order=shuffle(list); const rc=computeRecords(list,[]); const m=pairRound(order,rc); d.tournament={phase:"swiss",checkin:d.tournament.checkin,players:list,round:1,totalRounds:R,rounds:[{matches:m}]}; return d; }); }
+  function confirmMatch(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(!mm.report)return d; mm.winner=mm.report.winner; mm.confirmed=true; return d; }); }
+  function setWinner(ri,mi,w){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.winner=w; mm.confirmed=true; mm.report={winner:w,by:"admin"}; return d; }); }
+  function undo(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.confirmed=false; mm.winner=null; mm.report=null; return d; }); }
+  function nextRound(){ mutate(d=>{ const tt=d.tournament; const cur=tt.rounds[tt.round-1]; if(cur.matches.some(m=>!m.confirmed))return d; if(tt.round>=tt.totalRounds)return d; const rc=computeRecords(tt.players,tt.rounds); const order=standing(tt.players,rc); const m=pairRound(order,rc); tt.rounds.push({matches:m}); tt.round++; return d; }); }
+  function reset(){ mutate(d=>{ d.tournament={phase:"idle"}; return d; }); }
+  function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="checkin")return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; return d; }); }
+  function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed)return d; mm.report={winner,by:me}; return d; }); }
+
+  const box={...sCard,marginBottom:"12px"};
+  const wrap={padding:"14px 18px",maxWidth:"720px",margin:"0 auto"};
+
+  if(t.phase==="idle"){
+    return <div style={wrap} className="fu"><div style={{...box,textAlign:"center"}}>
+      <div style={{...sLbl,marginBottom:"8px"}}>Tournament</div>
+      <div style={{fontSize:"13px",color:C.muted,lineHeight:1.6,marginBottom:isAdmin?"14px":0}}>No tournament is running right now.</div>
+      {isAdmin&&<button className="btn" onClick={openCheckin} style={{padding:"11px 22px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900}}>Open check-in</button>}
+    </div></div>;
+  }
+
+  if(t.phase==="checkin"){
+    const inList=t.checkin&&me&&t.checkin[me];
+    const isPlayer=me&&data.users[me]&&data.users[me].role==="player";
+    return <div style={wrap} className="fu">
+      <div style={box}>
+        <div style={{...sLbl,marginBottom:"6px"}}>Check-in open</div>
+        <div style={{fontSize:"13px",color:C.muted,lineHeight:1.6,marginBottom:"12px"}}>Check in to join the matchday. Checking in gives you 5 participation coins. Only checked-in players are seeded into the Swiss.</div>
+        {isPlayer&&(inList
+          ? <div style={{padding:"11px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"9px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"13px",textAlign:"center"}}>You are checked in</div>
+          : <button className="btn" onClick={checkIn} style={{width:"100%",padding:"13px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"10px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:900,letterSpacing:".04em"}}>Check in (+5 coins)</button>)}
+      </div>
+      <div style={box}>
+        <div style={{...sLbl,marginBottom:"10px"}}>Checked in ({ci.length})</div>
+        {ci.length===0&&<div style={{fontSize:"13px",color:C.muted}}>Nobody yet.</div>}
+        <div style={{display:"flex",flexWrap:"wrap",gap:"7px"}}>{ci.map(n=><span key={n} style={{fontSize:"13px",color:C.text,background:"#c8a96e12",border:"1px solid #c8a96e33",borderRadius:"14px",padding:"3px 11px"}}>{n}</span>)}</div>
+      </div>
+      {isAdmin&&<div style={{display:"flex",gap:"8px"}}>
+        <button className="btn" disabled={ci.length<2} onClick={startSwiss} style={{flex:1,padding:"11px",background:ci.length>=2?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"9px",color:ci.length>=2?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900}}>Start Swiss ({ci.length})</button>
+        <button className="btn" onClick={reset} style={{padding:"11px 16px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"9px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"12px"}}>Cancel</button>
+      </div>}
+    </div>;
+  }
+
+  // swiss
+  const cur=rounds[t.round-1]||{matches:[]};
+  const allDone=cur.matches.every(m=>m.confirmed);
+  const bl={winners:"",lb1:"",lb2:"",eliminated:""};
+  return <div style={wrap} className="fu">
+    <div style={{...box,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div><div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"15px",fontWeight:600}}>Swiss</div><div style={{fontSize:"12px",color:C.muted}}>Round {t.round} of {t.totalRounds}</div></div>
+      {isAdmin&&<div style={{display:"flex",gap:"7px"}}>
+        {t.round<t.totalRounds
+          ? <button className="btn" disabled={!allDone} onClick={nextRound} style={{padding:"9px 15px",background:allDone?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"8px",color:allDone?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:700}}>Next round</button>
+          : <span style={{fontSize:"12px",color:allDone?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif",alignSelf:"center"}}>{allDone?"Swiss complete":"Finish all matches"}</span>}
+        <button className="btn" onClick={reset} style={{padding:"9px 12px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"8px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Reset</button>
+      </div>}
+    </div>
+
+    <div style={box}>
+      <div style={{...sLbl,marginBottom:"10px"}}>Round {t.round} matches</div>
+      {cur.matches.map((m,mi)=>{
+        const mine=me&&(m.a===me||m.b===me);
+        if(m.bye) return <div key={mi} style={{padding:"9px 0",borderBottom:"1px solid #c8a96e10",fontSize:"13px",color:C.muted}}><strong style={{color:C.text}}>{m.a}</strong> has a bye (free win)</div>;
+        const rep=m.report;
+        return (
+          <div key={mi} style={{padding:"10px 0",borderBottom:"1px solid #c8a96e10"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px"}}>
+              <div style={{fontSize:"14px",color:C.text}}><strong style={{color:m.confirmed&&m.winner===m.a?"#6ac68a":C.text}}>{m.a}</strong> <span style={{color:C.muted,fontSize:"12px"}}>vs</span> <strong style={{color:m.confirmed&&m.winner===m.b?"#6ac68a":C.text}}>{m.b}</strong></div>
+              {m.confirmed
+                ? <span style={{fontSize:"12px",color:"#6ac68a",fontFamily:"'Cinzel',serif"}}>{m.winner} won{isAdmin?" ":""}</span>
+                : rep? <span style={{fontSize:"11.5px",color:"#e0b040",fontFamily:"'Cinzel',serif"}}>pending: {rep.winner} won</span>
+                : <span style={{fontSize:"11.5px",color:C.muted}}>not reported</span>}
+            </div>
+            {mine&&!m.confirmed&&<div style={{display:"flex",gap:"7px",marginTop:"8px"}}>
+              <button className="btn" onClick={()=>report(t.round-1,mi,me)} style={{flex:1,padding:"8px",background:rep&&rep.winner===me?"#0d1a12":"#0d0f18",border:"1px solid "+(rep&&rep.winner===me?"#2a5a3a":"#333"),borderRadius:"7px",color:rep&&rep.winner===me?"#6ac68a":C.text,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>I won</button>
+              <button className="btn" onClick={()=>report(t.round-1,mi,m.a===me?m.b:m.a)} style={{flex:1,padding:"8px",background:"#0d0f18",border:"1px solid #333",borderRadius:"7px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>I lost</button>
+            </div>}
+            {isAdmin&&!m.confirmed&&<div style={{display:"flex",gap:"6px",marginTop:"8px"}}>
+              {rep&&<button className="btn" onClick={()=>confirmMatch(t.round-1,mi)} style={{padding:"6px 12px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"6px",color:"#8c8",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Confirm {rep.winner}</button>}
+              <button className="btn" onClick={()=>setWinner(t.round-1,mi,m.a)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"11px"}}>{m.a} won</button>
+              <button className="btn" onClick={()=>setWinner(t.round-1,mi,m.b)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"11px"}}>{m.b} won</button>
+            </div>}
+            {isAdmin&&m.confirmed&&!m.bye&&<button className="btn" onClick={()=>undo(t.round-1,mi)} style={{marginTop:"6px",padding:"4px 10px",background:"transparent",border:"1px solid #4a2222",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"10.5px"}}>undo</button>}
+          </div>
+        );
+      })}
+    </div>
+
+    <div style={box}>
+      <div style={{...sLbl,marginBottom:"10px"}}>Standings</div>
+      {stand.map((n,i)=>(
+        <div key={n} style={{display:"flex",alignItems:"center",gap:"10px",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
+          <span style={{width:"20px",fontFamily:"'Cinzel',serif",color:i<8?C.gold:"#3a3a3a",fontSize:"13px",fontWeight:900}}>{i+1}</span>
+          <span style={{flex:1,fontSize:"13px",color:n===me?C.gold:C.text}}>{n}{data.users[n]&&data.users[n].riotId?<span style={{color:C.muted,fontSize:"11px"}}> · {data.users[n].riotId}</span>:null}</span>
+          <span style={{fontSize:"12px",color:C.muted,fontFamily:"'Cinzel',serif"}}>{rec[n].w}-{rec[n].l}</span>
+        </div>
+      ))}
+      <div style={{fontSize:"11px",color:"#5a5347",marginTop:"8px"}}>Top 8 advance to the Triangle bracket.</div>
+    </div>
+  </div>;
+}
+
+/* ============================================================
    APP
    ============================================================ */
 function App(){
@@ -752,7 +885,7 @@ function App(){
   return (
     <div style={{minHeight:"100vh"}}>
       <TopBar me={me} role={role} coins={data.users[me].coins} onLogout={logout}/>
-      {role==="admin" ? <AdminHome data={data} mutate={mutate}/> : (db&&starters ? <PlayerHome data={data} me={me} db={db} starters={starters} mutate={mutate}/> : <Loading/>)}
+      {role==="admin" ? <AdminHome data={data} mutate={mutate} me={me}/> : (db&&starters ? <PlayerHome data={data} me={me} db={db} starters={starters} mutate={mutate}/> : <Loading/>)}
     </div>
   );
 }
