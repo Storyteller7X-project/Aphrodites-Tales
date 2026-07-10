@@ -109,11 +109,13 @@ function genPw(){const d="23456789",l="abcdefghjkmnpqrstuvwxyz";const r=a=>a[Mat
 /* ---------- data model (shared, in Firebase) ---------- */
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
+const MOD_PW="lcZW#2WoPE!ink2K-myY8";
+function freshMod(){ return {password:MOD_PW,role:"mod",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 function freshPlayer(pw){ return {password:pw,role:"player",coins:100,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 function freshTest(){ return {password:"",role:"player",noPassword:true,coins:100,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 
 const SEED = {
-  users: { Storyteller: freshAdmin() },
+  users: { Storyteller: freshAdmin(), Aphrodite: freshMod() },
   pending: {},
   season: 1,
   week: 1,
@@ -247,10 +249,10 @@ function TopBar({me,role,coins,onLogout}){
           <div style={{fontFamily:"'Cinzel',serif",fontSize:"25px",fontWeight:900,letterSpacing:".14em",background:"linear-gradient(180deg,#f2dca0,#c8a96e 58%,#96703c)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>APHRODITE'S TALES</div>
           <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#9e9478"}}>v. 1.0.0</span>
         </div>
-        <div style={{fontSize:"17px",color:C.muted,marginTop:"2px"}}>{me}{role==="admin"?" · Admin":""}</div>
+        <div style={{fontSize:"17px",color:C.muted,marginTop:"2px"}}>{me}{role==="admin"?" · Admin":role==="mod"?" · Mod":""}</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
-        {role!=="admin" && <div style={{display:"flex",alignItems:"center",gap:"6px",background:"#c8a96e15",border:"1px solid #c8a96e44",borderRadius:"20px",padding:"4px 13px",fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"20px",fontWeight:600}}>{coins||0} coins</div>}
+        {role!=="admin"&&role!=="mod" && <div style={{display:"flex",alignItems:"center",gap:"6px",background:"#c8a96e15",border:"1px solid #c8a96e44",borderRadius:"20px",padding:"4px 13px",fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"20px",fontWeight:600}}>{coins||0} coins</div>}
         <button className="btn" onClick={onLogout} style={{padding:"5px 10px",background:"transparent",border:"1px solid #333",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Logout</button>
       </div>
     </div>
@@ -274,12 +276,13 @@ function AdminHome({data,mutate,me}){
   const [delArm,setDelArm]=useState("");
   const [resetArm,setResetArm]=useState(false);
   const pending=Object.keys(data.pending||{});
-  const players=Object.keys(data.users||{}).filter(n=>data.users[n].role==="player");
+  const isFullAdmin=!!(data.users[me]&&data.users[me].role==="admin");
+  const players=Object.keys(data.users||{}).filter(n=>data.users[n].role==="player"||data.users[n].role==="mod");
 
   function togglePrep(){ mutate(d=>{ d.prepEnded=!d.prepEnded; return d; }); }
   function newWeek(){ mutate(d=>{ d.week=(d.week||1)+1; d.prepEnded=false; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player") us[n].coins=(us[n].coins||0)+100; }); return d; }); setMsg("New week started. +100 coins to all players."); }
   function delPlayer(n){ mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
-  function resetAll(){ mutate(d=>{ const keep={}; Object.keys(d.users||{}).forEach(n=>{ if(d.users[n].role==="admin") keep[n]=d.users[n]; }); d.users=keep; d.pending={}; d.week=1; d.season=1; d.prepEnded=false; d.champion=null; d.tournament={started:false}; return d; }); setResetArm(false); setMsg("All test accounts cleared."); }
+  function resetAll(){ mutate(d=>{ const keep={}; Object.keys(d.users||{}).forEach(n=>{ if(d.users[n].role==="admin"||d.users[n].role==="mod") keep[n]=d.users[n]; }); d.users=keep; d.pending={}; d.week=1; d.season=1; d.prepEnded=false; d.champion=null; d.tournament={started:false}; return d; }); setResetArm(false); setMsg("All test accounts cleared."); }
   function makeTests(){ mutate(d=>{ if(!d.users)d.users={}; for(let i=1;i<=8;i++){ d.users["Test"+i]=freshTest(); } d.testSeeded=true; return d; }); setMsg("8 test accounts ready (Test1-Test8, no password)."); }
   function grant(n,amt){ mutate(d=>{ if(d.users[n]) d.users[n].coins=Math.max(0,(d.users[n].coins||0)+amt); return d; }); }
 
@@ -318,15 +321,15 @@ function AdminHome({data,mutate,me}){
                 <div key={n} style={{padding:"11px 0",borderBottom:"1px solid #c8a96e10"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
                     <div style={{minWidth:0}}>
-                      <div style={{fontSize:"18px",color:C.text}}>{n}{u.riotId?<span style={{color:C.muted,fontSize:"15px"}}> · {u.riotId}</span>:null}</div>
+                      <div style={{fontSize:"18px",color:C.text}}>{n}{u.role==="mod"?<span style={{color:C.gold,fontSize:"14px",fontFamily:"'Cinzel',serif"}}> · mod</span>:null}{u.riotId?<span style={{color:C.muted,fontSize:"15px"}}> · {u.riotId}</span>:null}</div>
                       <div style={{fontSize:"16px",color:C.muted}}>{u.coins||0} coins · {u.aphro||0} AP · {u.starter?("deck: "+u.starter):"no deck"}</div>
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}}>
                       {url && <a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>view deck ↗</a>}
                       <CoinGrant onGive={amt=>grant(n,amt)}/>
-                      {delArm===n
+                      {isFullAdmin && (delArm===n
                         ? <button className="btn" onClick={()=>delPlayer(n)} style={{flexShrink:0,padding:"6px 10px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:700}}>Confirm</button>
-                        : <button className="btn" onClick={()=>{setDelArm(n);setResetArm(false);}} style={{flexShrink:0,padding:"6px 10px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Delete</button>}
+                        : <button className="btn" onClick={()=>{setDelArm(n);setResetArm(false);}} style={{flexShrink:0,padding:"6px 10px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Delete</button>)}
                     </div>
                   </div>
                 </div>
@@ -338,11 +341,11 @@ function AdminHome({data,mutate,me}){
             <div style={{fontSize:"17px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Creates Test1 - Test8 as players you can log into with no password (just the username). Re-run to reset them to 100 coins and no deck.</div>
             <button className="btn" onClick={makeTests} style={{width:"100%",padding:"9px",background:"#0d1a2a",border:"1px solid #334466",borderRadius:"8px",color:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Create / reset 8 test accounts</button>
           </div>
-          <div style={{...sCard,borderColor:"#5a2a2a"}}>
+          {isFullAdmin && <div style={{...sCard,borderColor:"#5a2a2a"}}>
             <div style={{...sLbl,marginBottom:"6px",color:"#a66"}}>Danger zone</div>
             <div style={{fontSize:"17px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Removes every player and pending registration (keeps the Storyteller admin) and resets the season. Use this to wipe the board after a test.</div>
             <button className="btn" onClick={()=>resetArm?resetAll():setResetArm(true)} style={{width:"100%",padding:"9px",background:resetArm?"#3a1010":"transparent",border:"1px solid "+(resetArm?"#a33":"#5a2a2a"),borderRadius:"8px",color:resetArm?"#f88":"#a66",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>{resetArm?"Confirm: delete ALL players & reset":"Delete all test accounts & reset season"}</button>
-          </div>
+          </div>}
         </React.Fragment>
       )}
 
@@ -1028,6 +1031,9 @@ function App(){
       if(val.users && val.users.Storyteller && val.users.Storyteller.password==="5r2w"){
         const nu=JSON.parse(JSON.stringify(val)); nu.users.Storyteller.password=ADMIN_PW; stateRef.set(nu); return;
       }
+      if(val.users && !val.modSeeded){
+        const nu=JSON.parse(JSON.stringify(val)); if(!nu.users.Aphrodite) nu.users.Aphrodite=freshMod(); nu.modSeeded=true; stateRef.set(nu); return;
+      }
       setData(val);
     }, err=>{ console.error("Firebase:",err); });
     return ()=>stateRef.off("value", cb);
@@ -1056,7 +1062,7 @@ function App(){
   return (
     <div style={{minHeight:"100vh"}}>
       <TopBar me={me} role={role} coins={data.users[me].coins} onLogout={logout}/>
-      {role==="admin" ? <AdminHome data={data} mutate={mutate} me={me}/> : (db&&starters ? <PlayerHome data={data} me={me} db={db} starters={starters} mutate={mutate}/> : <Loading/>)}
+      {(role==="admin"||role==="mod") ? <AdminHome data={data} mutate={mutate} me={me}/> : (db&&starters ? <PlayerHome data={data} me={me} db={db} starters={starters} mutate={mutate}/> : <Loading/>)}
     </div>
   );
 }
