@@ -335,11 +335,11 @@ function AdminHome({data,mutate,me}){
               );
             })}
           </div>
-          <div style={sCard}>
+          {isFullAdmin && <div style={sCard}>
             <div style={{...sLbl,marginBottom:"8px"}}>Test accounts</div>
             <div style={{fontSize:"17px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Creates Test1 - Test8 as players you can log into with no password (just the username). Re-run to reset them to 100 coins and no deck.</div>
             <button className="btn" onClick={makeTests} style={{width:"100%",padding:"9px",background:"#0d1a2a",border:"1px solid #334466",borderRadius:"8px",color:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Create / reset 8 test accounts</button>
-          </div>
+          </div>}
           {isFullAdmin && <div style={{...sCard,borderColor:"#5a2a2a"}}>
             <div style={{...sLbl,marginBottom:"6px",color:"#a66"}}>Danger zone</div>
             <div style={{fontSize:"17px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Removes every player and pending registration (keeps the Storyteller admin) and resets the season. Use this to wipe the board after a test.</div>
