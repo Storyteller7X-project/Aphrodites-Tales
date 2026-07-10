@@ -470,14 +470,16 @@ function deckRuleBlock(db,deck,code){
 }
 function removalCost(n){ if(n>=100)return 1; if(n>=90)return 2; if(n>=80)return 5; if(n>=70)return 10; if(n>=60)return 20; if(n>=50)return 50; if(n>=40)return 100; if(n>=30)return 200; if(n>=20)return 500; if(n>=11)return 1000; return 0; }
 function removalBatch(n){ return Math.max(0,Math.min(10,n-ECON.DECK_FLOOR)); }
-function rollPack(db,pool){
+function rollPack(db,pool,deck){
   if(!pool||!pool.length) return [];
-  let total=0; for(let k=0;k<pool.length;k++) total+=1/coinOf(db,pool[k]);
+  let cand=pool.filter(code=>copiesOf(deck,code)<ECON.MAX_COPIES);
   const out=[];
-  for(let i=0;i<ECON.PACK_SIZE;i++){
-    let r=Math.random()*total, idx=pool.length-1;
-    for(let k=0;k<pool.length;k++){ r-=1/coinOf(db,pool[k]); if(r<=0){ idx=k; break; } }
-    out.push(pool[idx]);
+  for(let i=0;i<ECON.PACK_SIZE && cand.length>0;i++){
+    let total=0; for(let k=0;k<cand.length;k++) total+=1/coinOf(db,cand[k]);
+    let r=Math.random()*total, idx=cand.length-1;
+    for(let k=0;k<cand.length;k++){ r-=1/coinOf(db,cand[k]); if(r<=0){ idx=k; break; } }
+    out.push(cand[idx]);
+    cand.splice(idx,1);
   }
   return out;
 }
@@ -625,7 +627,7 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
   const [pack,setPack]=useState(null);
   function open(r){
     if(locked||coins<ECON.PACK_COST) return;
-    const cards=rollPack(db,db.pools[r]);
+    const cards=rollPack(db,db.pools[r],deck);
     const parts=[]; for(let i=0;i<28;i++){ const a=Math.random()*6.2832,d=110+Math.random()*320; parts.push({tx:(Math.cos(a)*d).toFixed(0),ty:(Math.sin(a)*d).toFixed(0),s:(3+Math.random()*6).toFixed(1),dl:(Math.random()*0.12).toFixed(2)}); }
     setPack({reg:r,cards,sel:null,parts});
     onCharge();
