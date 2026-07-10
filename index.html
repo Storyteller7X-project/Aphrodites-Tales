@@ -8,7 +8,7 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Crimson+Pro:wght@300;400;600&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#060810;color:#e8d5b0;font-family:'Crimson Pro',Georgia,serif;font-size:17px}
+  body{background:#060810;color:#e8d5b0;font-family:'Crimson Pro',Georgia,serif;font-size:18px}
   @keyframes reveal{0%{opacity:0;transform:scale(.4) rotateY(55deg)}70%{transform:scale(1.06) rotateY(0)}100%{opacity:1;transform:scale(1) rotateY(0)}}
   .revealcard{animation:reveal .55s cubic-bezier(.2,.8,.3,1.25) backwards}
   @keyframes shine{0%{left:-45%}100%{left:145%}}
@@ -96,8 +96,8 @@ if (CONFIG_OK) {
 /* ---------- theme ---------- */
 const C = {bg:"#060810",surface:"#0d0f18",dim:"#0a0c14",gold:"#c8a96e",text:"#e8d5b0",muted:"#7c715b",faint:"#3a3a3a"};
 const sCard={background:C.surface,border:"1px solid #c8a96e28",borderRadius:"12px",padding:"18px"};
-const sLbl={fontFamily:"'Cinzel',serif",fontSize:"11px",color:C.muted,letterSpacing:".1em",textTransform:"uppercase"};
-const sInp={width:"100%",background:C.bg,border:"1px solid #c8a96e44",borderRadius:"8px",padding:"10px 14px",color:C.text,fontFamily:"'Crimson Pro',serif",fontSize:"17px"};
+const sLbl={fontFamily:"'Cinzel',serif",fontSize:"13px",color:C.muted,letterSpacing:".1em",textTransform:"uppercase"};
+const sInp={width:"100%",background:C.bg,border:"1px solid #c8a96e44",borderRadius:"8px",padding:"10px 14px",color:C.text,fontFamily:"'Crimson Pro',serif",fontSize:"21px"};
 const wrap={display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",padding:"40px 20px",background:"radial-gradient(ellipse at 50% -10%,#1a1200,#060810 55%)"};
 
 /* ---------- helpers ---------- */
@@ -131,18 +131,18 @@ function SetupScreen(){
   return (
     <div style={wrap}>
       <div className="fu" style={{...sCard,maxWidth:"560px",width:"100%",borderColor:"#c8a96e55"}}>
-        <div className="glow" style={{fontFamily:"'Cinzel',serif",fontSize:"22px",fontWeight:900,color:C.gold,letterSpacing:".1em",textAlign:"center",marginBottom:"6px"}}>APHRODITE'S TALES</div>
-        <div style={{textAlign:"center",color:C.muted,fontSize:"13px",marginBottom:"18px"}}>Firebase setup required</div>
+        <div className="glow" style={{fontFamily:"'Cinzel',serif",fontSize:"27px",fontWeight:900,color:C.gold,letterSpacing:".1em",textAlign:"center",marginBottom:"6px"}}>APHRODITE'S TALES</div>
+        <div style={{textAlign:"center",color:C.muted,fontSize:"16px",marginBottom:"18px"}}>Firebase setup required</div>
         {steps.map((s,i)=>(
           <div key={i} style={{display:"flex",gap:"12px",marginBottom:"14px"}}>
-            <div style={{flexShrink:0,width:"26px",height:"26px",borderRadius:"50%",background:"#c8a96e18",border:"1px solid #c8a96e55",color:C.gold,fontFamily:"'Cinzel',serif",fontWeight:900,fontSize:"13px",display:"flex",alignItems:"center",justifyContent:"center"}}>{i+1}</div>
+            <div style={{flexShrink:0,width:"26px",height:"26px",borderRadius:"50%",background:"#c8a96e18",border:"1px solid #c8a96e55",color:C.gold,fontFamily:"'Cinzel',serif",fontWeight:900,fontSize:"16px",display:"flex",alignItems:"center",justifyContent:"center"}}>{i+1}</div>
             <div>
-              <div style={{fontFamily:"'Cinzel',serif",color:C.text,fontSize:"14px",fontWeight:600,marginBottom:"3px"}}>{s[0]}</div>
-              <div style={{fontSize:"13px",color:"#9c917b",lineHeight:1.6}}>{s[1]}</div>
+              <div style={{fontFamily:"'Cinzel',serif",color:C.text,fontSize:"17px",fontWeight:600,marginBottom:"3px"}}>{s[0]}</div>
+              <div style={{fontSize:"16px",color:"#9c917b",lineHeight:1.6}}>{s[1]}</div>
             </div>
           </div>
         ))}
-        <div style={{marginTop:"6px",padding:"12px 14px",background:C.dim,borderRadius:"8px",border:"1px solid #c8a96e22",fontSize:"12.5px",color:"#9c917b",lineHeight:1.6}}>
+        <div style={{marginTop:"6px",padding:"12px 14px",background:C.dim,borderRadius:"8px",border:"1px solid #c8a96e22",fontSize:"15px",color:"#9c917b",lineHeight:1.6}}>
           Once connected, this same file works on every device and phone at once. Send me the config if you'd rather I plug it in.
         </div>
       </div>
@@ -154,7 +154,7 @@ function Loading(){
   return (
     <div style={{...wrap,gap:"16px"}}>
       <div className="spin" style={{width:"44px",height:"44px",borderRadius:"50%",border:"3px solid #c8a96e33",borderTopColor:C.gold}}/>
-      <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"13px",letterSpacing:".1em"}}>Connecting to the archive</div>
+      <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"16px",letterSpacing:".1em"}}>Connecting to the archive</div>
     </div>
   );
 }
@@ -190,9 +190,9 @@ function Login({data,onLogin,onSpectator,onRegister}){
   if(done) return (
     <div style={wrap}>
       <div className="fu" style={{...sCard,maxWidth:"420px",width:"100%",textAlign:"center",borderColor:"#c8a96e55"}}>
-        <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"15px",fontWeight:600,marginBottom:"10px"}}>Registration submitted</div>
-        <div style={{fontSize:"13px",color:"#aaa",lineHeight:1.7}}>Your account <strong style={{color:C.text}}>{name.trim()}</strong> is pending. An admin will approve you and DM your password on Discord.</div>
-        <button className="btn" onClick={()=>{setDone(false);setMode("login");setName("");}} style={{marginTop:"18px",padding:"9px 22px",background:"#c8a96e18",border:"1px solid #c8a96e44",borderRadius:"8px",color:C.gold,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>Back to login</button>
+        <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"18px",fontWeight:600,marginBottom:"10px"}}>Registration submitted</div>
+        <div style={{fontSize:"16px",color:"#aaa",lineHeight:1.7}}>Your account <strong style={{color:C.text}}>{name.trim()}</strong> is pending. An admin will approve you and DM your password on Discord.</div>
+        <button className="btn" onClick={()=>{setDone(false);setMode("login");setName("");}} style={{marginTop:"18px",padding:"9px 22px",background:"#c8a96e18",border:"1px solid #c8a96e44",borderRadius:"8px",color:C.gold,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Back to login</button>
       </div>
     </div>
   );
@@ -203,10 +203,10 @@ function Login({data,onLogin,onSpectator,onRegister}){
         <div className="glow" style={{fontFamily:"'Cinzel',serif",fontSize:"clamp(32px,7.5vw,60px)",fontWeight:900,letterSpacing:".14em",lineHeight:1,background:"linear-gradient(180deg,#f7e0a4,#c8a96e 54%,#8a6636)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>APHRODITE'S TALES</div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"10px",marginTop:"12px"}}>
           <span style={{height:"1px",width:"56px",background:"linear-gradient(90deg,transparent,#c8a96e99)"}}/>
-          <span style={{fontFamily:"'Cinzel',serif",fontSize:"11px",color:C.muted,letterSpacing:".3em"}}>POWERED BY STORYTELLER</span>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:"13px",color:C.muted,letterSpacing:".3em"}}>POWERED BY STORYTELLER</span>
           <span style={{height:"1px",width:"56px",background:"linear-gradient(90deg,#c8a96e99,transparent)"}}/>
         </div>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:"10px",color:"#5a5347",letterSpacing:".25em",marginTop:"7px"}}>v. 1.0.0</div>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:"13px",color:"#5a5347",letterSpacing:".25em",marginTop:"7px"}}>v. 1.0.0</div>
       </div>
       <div className="fu" style={{width:"100%",maxWidth:"400px",display:"flex",flexDirection:"column",gap:"13px"}}>
         {mode==="login" ? (
@@ -216,23 +216,23 @@ function Login({data,onLogin,onSpectator,onRegister}){
               <input value={name} onChange={e=>setName(e.target.value)} placeholder="Username" style={{...sInp,marginBottom:"8px"}}/>
               <input value={pw} onChange={e=>setPw(e.target.value)} placeholder="Password" type="password" style={sInp} onKeyDown={e=>e.key==="Enter"&&doLogin()}/>
             </div>
-            {err && <div style={{color:"#cc4444",fontSize:"13px",textAlign:"center",fontFamily:"'Cinzel',serif"}}>{err}</div>}
-            <button className="btn" onClick={doLogin} style={{padding:"14px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"10px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:900,letterSpacing:".15em"}}>ENTER</button>
+            {err && <div style={{color:"#cc4444",fontSize:"16px",textAlign:"center",fontFamily:"'Cinzel',serif"}}>{err}</div>}
+            <button className="btn" onClick={doLogin} style={{padding:"14px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"10px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900,letterSpacing:".15em"}}>ENTER</button>
             <div style={{padding:"13px",background:"#c8a96e08",border:"1px solid #c8a96e15",borderRadius:"10px",textAlign:"center"}}>
-              <div style={{fontSize:"12px",color:C.muted,marginBottom:"9px"}}>Enter <strong style={{color:"#888"}}>Spectator</strong> as the username to watch (no password).</div>
-              <button className="btn" onClick={()=>{setMode("register");setErr("");}} style={{padding:"5px 14px",background:"transparent",border:"1px solid #c8a96e33",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Register new account →</button>
+              <div style={{fontSize:"15px",color:C.muted,marginBottom:"9px"}}>Enter <strong style={{color:"#888"}}>Spectator</strong> as the username to watch (no password).</div>
+              <button className="btn" onClick={()=>{setMode("register");setErr("");}} style={{padding:"5px 14px",background:"transparent",border:"1px solid #c8a96e33",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"13px"}}>Register new account →</button>
             </div>
           </React.Fragment>
         ) : (
           <React.Fragment>
             <div style={sCard}>
               <div style={{...sLbl,marginBottom:"10px"}}>Register</div>
-              <div style={{fontSize:"13px",color:C.muted,marginBottom:"12px",lineHeight:1.6}}>Enter your Discord username. An admin will approve you and DM your password.</div>
+              <div style={{fontSize:"16px",color:C.muted,marginBottom:"12px",lineHeight:1.6}}>Enter your Discord username. An admin will approve you and DM your password.</div>
               <input value={name} onChange={e=>setName(e.target.value)} placeholder="Discord username" style={sInp}/>
             </div>
-            {err && <div style={{color:"#cc4444",fontSize:"13px",textAlign:"center",fontFamily:"'Cinzel',serif"}}>{err}</div>}
-            <button className="btn" onClick={doReg} style={{padding:"14px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"10px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:900,letterSpacing:".15em"}}>SUBMIT REGISTRATION</button>
-            <button className="btn" onClick={()=>{setMode("login");setErr("");}} style={{padding:"10px",background:"transparent",border:"1px solid #333",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>← Back</button>
+            {err && <div style={{color:"#cc4444",fontSize:"16px",textAlign:"center",fontFamily:"'Cinzel',serif"}}>{err}</div>}
+            <button className="btn" onClick={doReg} style={{padding:"14px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"10px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900,letterSpacing:".15em"}}>SUBMIT REGISTRATION</button>
+            <button className="btn" onClick={()=>{setMode("login");setErr("");}} style={{padding:"10px",background:"transparent",border:"1px solid #333",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>← Back</button>
           </React.Fragment>
         )}
       </div>
@@ -248,14 +248,14 @@ function TopBar({me,role,coins,onLogout}){
     <div style={{background:"#090b13",borderBottom:"1px solid #c8a96e1a",padding:"10px 18px",position:"sticky",top:0,zIndex:50,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div>
         <div style={{display:"flex",alignItems:"baseline",gap:"8px"}}>
-          <div style={{fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900,letterSpacing:".14em",background:"linear-gradient(180deg,#f2dca0,#c8a96e 58%,#96703c)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>APHRODITE'S TALES</div>
-          <span style={{fontFamily:"'Cinzel',serif",fontSize:"10px",color:"#6a6253"}}>v. 1.0.0</span>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:"22px",fontWeight:900,letterSpacing:".14em",background:"linear-gradient(180deg,#f2dca0,#c8a96e 58%,#96703c)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>APHRODITE'S TALES</div>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:"13px",color:"#6a6253"}}>v. 1.0.0</span>
         </div>
-        <div style={{fontSize:"12px",color:C.muted,marginTop:"2px"}}>{me}{role==="admin"?" · Admin":""}</div>
+        <div style={{fontSize:"15px",color:C.muted,marginTop:"2px"}}>{me}{role==="admin"?" · Admin":""}</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
-        {role!=="admin" && <div style={{display:"flex",alignItems:"center",gap:"6px",background:"#c8a96e15",border:"1px solid #c8a96e44",borderRadius:"20px",padding:"4px 13px",fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"14px",fontWeight:600}}>{coins||0} coins</div>}
-        <button className="btn" onClick={onLogout} style={{padding:"5px 10px",background:"transparent",border:"1px solid #333",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Logout</button>
+        {role!=="admin" && <div style={{display:"flex",alignItems:"center",gap:"6px",background:"#c8a96e15",border:"1px solid #c8a96e44",borderRadius:"20px",padding:"4px 13px",fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"17px",fontWeight:600}}>{coins||0} coins</div>}
+        <button className="btn" onClick={onLogout} style={{padding:"5px 10px",background:"transparent",border:"1px solid #333",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"13px"}}>Logout</button>
       </div>
     </div>
   );
@@ -264,6 +264,14 @@ function TopBar({me,role,coins,onLogout}){
 /* ============================================================
    ADMIN HOME (foundation: approvals + roster + prep phase)
    ============================================================ */
+function CoinGrant({onGive}){
+  const [v,setV]=useState("");
+  const n=parseInt(v,10);
+  return <div style={{display:"flex",gap:"4px",alignItems:"center"}}>
+    <input value={v} onChange={e=>setV(e.target.value.replace(/[^0-9-]/g,""))} placeholder="coins" style={{width:"66px",background:"#0d0f18",border:"1px solid #333",borderRadius:"6px",padding:"6px 8px",color:"#e8d5b0",fontSize:"14px",outline:"none"}}/>
+    <button className="btn" disabled={!n} onClick={()=>{ if(n){onGive(n);setV("");} }} style={{padding:"6px 11px",background:n?"#c8a96e18":"#0d0f18",border:"1px solid "+(n?"#c8a96e55":"#333"),borderRadius:"6px",color:n?"#c8a96e":"#555",fontFamily:"'Cinzel',serif",fontSize:"13px"}}>give</button>
+  </div>;
+}
 function AdminHome({data,mutate,me}){
   const [atab,setAtab]=useState("home");
   const [msg,setMsg]=useState("");
@@ -272,17 +280,18 @@ function AdminHome({data,mutate,me}){
   const pending=Object.keys(data.pending||{});
   const players=Object.keys(data.users||{}).filter(n=>data.users[n].role==="player");
 
-  function approve(n){ mutate(d=>{ const p=d.pending&&d.pending[n]; if(!p)return d; d.users[n]=freshPlayer(p.password); delete d.pending[n]; return d; }); setMsg(n+" approved."); }
+  function approve(n){ mutate(d=>{ const p=d.pending&&d.pending[n]; if(!p)return d; const np=freshPlayer(p.password); np.coins=100+95*((d.week||1)-1); d.users[n]=np; delete d.pending[n]; return d; }); setMsg(n+" approved."); }
   function deny(n){ mutate(d=>{ if(d.pending) delete d.pending[n]; return d; }); }
   function togglePrep(){ mutate(d=>{ d.prepEnded=!d.prepEnded; return d; }); }
   function newWeek(){ mutate(d=>{ d.week=(d.week||1)+1; d.prepEnded=false; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player") us[n].coins=(us[n].coins||0)+100; }); return d; }); setMsg("New week started. +100 coins to all players."); }
   function delPlayer(n){ mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
   function resetAll(){ mutate(d=>{ const keep={}; Object.keys(d.users||{}).forEach(n=>{ if(d.users[n].role==="admin") keep[n]=d.users[n]; }); d.users=keep; d.pending={}; d.week=1; d.season=1; d.prepEnded=false; d.champion=null; d.tournament={started:false}; return d; }); setResetArm(false); setMsg("All test accounts cleared."); }
   function makeTests(){ mutate(d=>{ if(!d.users)d.users={}; for(let i=1;i<=8;i++){ d.users["Test"+i]=freshTest(); } d.testSeeded=true; return d; }); setMsg("8 test accounts ready (Test1-Test8, no password)."); }
+  function grant(n,amt){ mutate(d=>{ if(d.users[n]) d.users[n].coins=Math.max(0,(d.users[n].coins||0)+amt); return d; }); }
 
   const tab=(t,label)=>(
     <button key={t} className="btn" onClick={()=>{setAtab(t);setMsg("");setDelArm("");setResetArm(false);}}
-      style={{flex:1,padding:"9px 4px",background:atab===t?"#c8a96e18":"transparent",border:"1px solid "+(atab===t?"#c8a96e44":"transparent"),borderRadius:"7px",color:atab===t?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600,letterSpacing:".04em"}}>{label}</button>
+      style={{flex:1,padding:"9px 4px",background:atab===t?"#c8a96e18":"transparent",border:"1px solid "+(atab===t?"#c8a96e44":"transparent"),borderRadius:"7px",color:atab===t?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:600,letterSpacing:".04em"}}>{label}</button>
   );
 
   return (
@@ -295,23 +304,23 @@ function AdminHome({data,mutate,me}){
         <React.Fragment>
           <div style={sCard}>
             <div style={{...sLbl,marginBottom:"6px"}}>Season {data.season||1} · Week {data.week||1}</div>
-            <div style={{fontSize:"12px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>{data.prepEnded ? "Decks are LOCKED for the matchday. Players cannot edit until you start the next week." : "Prep Time is OPEN. Players can buy, open packs, and remove cards."}</div>
+            <div style={{fontSize:"15px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>{data.prepEnded ? "Decks are LOCKED for the matchday. Players cannot edit until you start the next week." : "Prep Time is OPEN. Players can buy, open packs, and remove cards."}</div>
             <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
-              <button className="btn" onClick={togglePrep} style={{flex:1,minWidth:"150px",padding:"9px",background:data.prepEnded?"#1a1400":"#0d1a2a",border:"1px solid "+(data.prepEnded?"#c8a96e55":"#334466"),borderRadius:"8px",color:data.prepEnded?C.gold:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600}}>{data.prepEnded?"Reopen Prep Time":"End Prep Time"}</button>
-              <button className="btn" onClick={newWeek} style={{flex:1,minWidth:"150px",padding:"9px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600}}>Start next week (+100 all)</button>
+              <button className="btn" onClick={togglePrep} style={{flex:1,minWidth:"150px",padding:"9px",background:data.prepEnded?"#1a1400":"#0d1a2a",border:"1px solid "+(data.prepEnded?"#c8a96e55":"#334466"),borderRadius:"8px",color:data.prepEnded?C.gold:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:600}}>{data.prepEnded?"Reopen Prep Time":"End Prep Time"}</button>
+              <button className="btn" onClick={newWeek} style={{flex:1,minWidth:"150px",padding:"9px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:600}}>Start next week (+100 all)</button>
             </div>
           </div>
           <div style={sCard}>
             <div style={{...sLbl,marginBottom:"10px"}}>Registrations ({pending.length})</div>
-            {pending.length===0 && <div style={{fontSize:"13px",color:C.muted}}>No pending registrations.</div>}
+            {pending.length===0 && <div style={{fontSize:"16px",color:C.muted}}>No pending registrations.</div>}
             {pending.map(n=>(
               <div key={n} style={{display:"flex",alignItems:"center",gap:"12px",padding:"9px 0",borderBottom:"1px solid #c8a96e10"}}>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:"14px",color:C.text,fontWeight:600}}>{n}</div>
-                  <div style={{fontFamily:"monospace",fontSize:"18px",color:C.gold,letterSpacing:".1em"}}>{data.pending[n].password}</div>
+                  <div style={{fontSize:"17px",color:C.text,fontWeight:600}}>{n}</div>
+                  <div style={{fontFamily:"monospace",fontSize:"22px",color:C.gold,letterSpacing:".1em"}}>{data.pending[n].password}</div>
                 </div>
-                <button className="btn" onClick={()=>approve(n)} style={{padding:"6px 12px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"6px",color:"#6c6",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Approve</button>
-                <button className="btn" onClick={()=>deny(n)} style={{padding:"6px 12px",background:"#1a0a0a",border:"1px solid #4a2222",borderRadius:"6px",color:"#c66",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Deny</button>
+                <button className="btn" onClick={()=>approve(n)} style={{padding:"6px 12px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"6px",color:"#6c6",fontFamily:"'Cinzel',serif",fontSize:"13px"}}>Approve</button>
+                <button className="btn" onClick={()=>deny(n)} style={{padding:"6px 12px",background:"#1a0a0a",border:"1px solid #4a2222",borderRadius:"6px",color:"#c66",fontFamily:"'Cinzel',serif",fontSize:"13px"}}>Deny</button>
               </div>
             ))}
           </div>
@@ -322,38 +331,44 @@ function AdminHome({data,mutate,me}){
         <React.Fragment>
           <div style={sCard}>
             <div style={{...sLbl,marginBottom:"10px"}}>Players ({players.length})</div>
-            {players.length===0 && <div style={{fontSize:"13px",color:C.muted}}>No players yet.</div>}
+            {players.length===0 && <div style={{fontSize:"16px",color:C.muted}}>No players yet.</div>}
             {players.map(n=>{
-              const u=data.users[n];
+              const u=data.users[n]; const url=deckUrl(u.deck);
               return (
-                <div key={n} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",padding:"9px 0",borderBottom:"1px solid #c8a96e10"}}>
-                  <div style={{minWidth:0}}>
-                    <div style={{fontSize:"13px",color:C.text}}>{n}{u.riotId?<span style={{color:C.muted,fontSize:"11px"}}> · {u.riotId}</span>:null}</div>
-                    <div style={{fontSize:"11px",color:C.muted}}>pw {u.password} · {u.coins||0} coins · {u.aphro||0} AP · {u.starter?("deck: "+u.starter):"no deck"}</div>
+                <div key={n} style={{padding:"11px 0",borderBottom:"1px solid #c8a96e10"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:"16px",color:C.text}}>{n}{u.riotId?<span style={{color:C.muted,fontSize:"13px"}}> · {u.riotId}</span>:null}</div>
+                      <div style={{fontSize:"14px",color:C.muted}}>{u.coins||0} coins · {u.aphro||0} AP · {u.starter?("deck: "+u.starter):"no deck"}</div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}}>
+                      {url && <a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:"13px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>view deck ↗</a>}
+                      <CoinGrant onGive={amt=>grant(n,amt)}/>
+                      {delArm===n
+                        ? <button className="btn" onClick={()=>delPlayer(n)} style={{flexShrink:0,padding:"6px 10px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:700}}>Confirm</button>
+                        : <button className="btn" onClick={()=>{setDelArm(n);setResetArm(false);}} style={{flexShrink:0,padding:"6px 10px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"13px"}}>Delete</button>}
+                    </div>
                   </div>
-                  {delArm===n
-                    ? <button className="btn" onClick={()=>delPlayer(n)} style={{flexShrink:0,padding:"6px 10px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"11px",fontWeight:700}}>Confirm delete</button>
-                    : <button className="btn" onClick={()=>{setDelArm(n);setResetArm(false);}} style={{flexShrink:0,padding:"6px 10px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Delete</button>}
                 </div>
               );
             })}
           </div>
           <div style={sCard}>
             <div style={{...sLbl,marginBottom:"8px"}}>Test accounts</div>
-            <div style={{fontSize:"12px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Creates Test1 - Test8 as players you can log into with no password (just the username). Re-run to reset them to 100 coins and no deck.</div>
-            <button className="btn" onClick={makeTests} style={{width:"100%",padding:"9px",background:"#0d1a2a",border:"1px solid #334466",borderRadius:"8px",color:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600}}>Create / reset 8 test accounts</button>
+            <div style={{fontSize:"15px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Creates Test1 - Test8 as players you can log into with no password (just the username). Re-run to reset them to 100 coins and no deck.</div>
+            <button className="btn" onClick={makeTests} style={{width:"100%",padding:"9px",background:"#0d1a2a",border:"1px solid #334466",borderRadius:"8px",color:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:600}}>Create / reset 8 test accounts</button>
           </div>
           <div style={{...sCard,borderColor:"#5a2a2a"}}>
             <div style={{...sLbl,marginBottom:"6px",color:"#a66"}}>Danger zone</div>
-            <div style={{fontSize:"12px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Removes every player and pending registration (keeps the Storyteller admin) and resets the season. Use this to wipe the board after a test.</div>
-            <button className="btn" onClick={()=>resetArm?resetAll():setResetArm(true)} style={{width:"100%",padding:"9px",background:resetArm?"#3a1010":"transparent",border:"1px solid "+(resetArm?"#a33":"#5a2a2a"),borderRadius:"8px",color:resetArm?"#f88":"#a66",fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:600}}>{resetArm?"Confirm: delete ALL players & reset":"Delete all test accounts & reset season"}</button>
+            <div style={{fontSize:"15px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Removes every player and pending registration (keeps the Storyteller admin) and resets the season. Use this to wipe the board after a test.</div>
+            <button className="btn" onClick={()=>resetArm?resetAll():setResetArm(true)} style={{width:"100%",padding:"9px",background:resetArm?"#3a1010":"transparent",border:"1px solid "+(resetArm?"#a33":"#5a2a2a"),borderRadius:"8px",color:resetArm?"#f88":"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:600}}>{resetArm?"Confirm: delete ALL players & reset":"Delete all test accounts & reset season"}</button>
           </div>
         </React.Fragment>
       )}
 
       {atab==="bracket" && <Tournament data={data} me={me} role="admin" mutate={mutate}/>}
 
-      {msg && <div style={{padding:"10px 14px",background:"#0a1a0a",border:"1px solid #3a6a3a",borderRadius:"8px",color:"#8c8",fontSize:"13px",fontFamily:"'Cinzel',serif"}}>{msg}</div>}
+      {msg && <div style={{padding:"10px 14px",background:"#0a1a0a",border:"1px solid #3a6a3a",borderRadius:"8px",color:"#8c8",fontSize:"16px",fontFamily:"'Cinzel',serif"}}>{msg}</div>}
     </div>
   );
 }
@@ -376,11 +391,11 @@ function PlayerHome({data,me,db,starters,mutate}){
 
   if(!u.starter || !deck.length) return <StarterSelect starters={starters} db={db} onPick={pickStarter}/>;
 
-  const tb=(t,l)=>(<button key={t} className="btn" onClick={()=>setTab(t)} style={{flex:1,padding:"12px 4px",background:tab===t?"#c8a96e12":"transparent",border:"none",borderBottom:"2px solid "+(tab===t?C.gold:"transparent"),color:tab===t?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:600,letterSpacing:".04em"}}>{l}</button>);
+  const tb=(t,l)=>(<button key={t} className="btn" onClick={()=>setTab(t)} style={{flex:1,padding:"12px 4px",background:tab===t?"#c8a96e12":"transparent",border:"none",borderBottom:"2px solid "+(tab===t?C.gold:"transparent"),color:tab===t?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600,letterSpacing:".04em"}}>{l}</button>);
 
   return (
     <div>
-      {locked && <div style={{background:"#1a1400",borderBottom:"1px solid #c8a96e33",padding:"7px",textAlign:"center",fontFamily:"'Cinzel',serif",fontSize:"11.5px",color:C.gold}}>Prep Time is over. Your deck is locked for the matchday.</div>}
+      {locked && <div style={{background:"#1a1400",borderBottom:"1px solid #c8a96e33",padding:"7px",textAlign:"center",fontFamily:"'Cinzel',serif",fontSize:"14px",color:C.gold}}>Prep Time is over. Your deck is locked for the matchday.</div>}
       <div style={{display:"flex",background:"#090b12",borderBottom:"1px solid #c8a96e1a",position:"sticky",top:0,zIndex:40}}>
         {tb("deck","My Deck")}{tb("store","Store")}{tb("packs","Buy Packs")}{tb("tourney","Tournament")}
       </div>
@@ -400,16 +415,16 @@ function Spectator({data,onLeave}){
   return (
     <div style={{minHeight:"100vh"}}>
       <div style={{background:"#090b13",borderBottom:"1px solid #c8a96e1a",padding:"10px 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900,color:C.gold,letterSpacing:".1em"}}>APHRODITE'S TALES</div>
-        <button className="btn" onClick={onLeave} style={{padding:"5px 10px",background:"transparent",border:"1px solid #333",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Leave</button>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:"16px",fontWeight:900,color:C.gold,letterSpacing:".1em"}}>APHRODITE'S TALES</div>
+        <button className="btn" onClick={onLeave} style={{padding:"5px 10px",background:"transparent",border:"1px solid #333",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"13px"}}>Leave</button>
       </div>
       <div style={{padding:"14px 18px",maxWidth:"640px",margin:"0 auto"}} className="fu">
         <div style={{...sLbl,marginBottom:"10px"}}>Competitors ({players.length})</div>
-        {players.length===0 && <div style={{...sCard,textAlign:"center",color:C.muted,fontSize:"13px"}}>No players yet.</div>}
+        {players.length===0 && <div style={{...sCard,textAlign:"center",color:C.muted,fontSize:"16px"}}>No players yet.</div>}
         {players.map(n=>(
           <div key={n} style={{...sCard,padding:"11px 14px",marginBottom:"8px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontSize:"13px",color:C.text}}>{n}</div>
-            <div style={{fontSize:"12px",color:C.muted}}>{(data.users[n].aphro||0)} AP</div>
+            <div style={{fontSize:"16px",color:C.text}}>{n}</div>
+            <div style={{fontSize:"15px",color:C.muted}}>{(data.users[n].aphro||0)} AP</div>
           </div>
         ))}
         <Tournament data={data} me={null} role="spectator" mutate={()=>{}}/>
@@ -450,7 +465,7 @@ function RegBtn({r,on,onClick,small}){
   const [ok,setOk]=useState(true);
   const sz=small?15:19;
   return (
-    <button className="btn" onClick={onClick} style={{display:"flex",alignItems:"center",gap:"6px",padding:small?"4px 8px":"7px 12px",background:on?REGCOL[r]+"22":"transparent",border:"1px solid "+(on?REGCOL[r]+"aa":"#333"),borderRadius:"7px",color:on?REGCOL[r]:C.muted,fontFamily:"'Cinzel',serif",fontSize:small?"10.5px":"12px",cursor:"pointer",whiteSpace:"nowrap"}}>
+    <button className="btn" onClick={onClick} style={{display:"flex",alignItems:"center",gap:"6px",padding:small?"4px 8px":"7px 12px",background:on?REGCOL[r]+"22":"transparent",border:"1px solid "+(on?REGCOL[r]+"aa":"#333"),borderRadius:"7px",color:on?REGCOL[r]:C.muted,fontFamily:"'Cinzel',serif",fontSize:small?"13px":"15px",cursor:"pointer",whiteSpace:"nowrap"}}>
       {ok
         ? <img src={regIcon(r)} alt="" style={{width:sz,height:sz,filter:on?"none":"grayscale(1)",opacity:on?1:.6}} onError={()=>setOk(false)}/>
         : <span style={{width:sz-4,height:sz-4,borderRadius:"50%",background:REGCOL[r],display:"inline-block",flexShrink:0,opacity:on?1:.7}}/>}
@@ -493,7 +508,7 @@ function rollPack(db,pool){
   return out;
 }
 
-const rTab=(on,col)=>({padding:"4px 9px",background:on?(col||"#c8a96e")+"22":"transparent",border:"1px solid "+(on?(col||"#c8a96e")+"88":"#333"),borderRadius:"6px",color:on?(col||"#c8a96e"):C.muted,fontFamily:"'Cinzel',serif",fontSize:"10.5px",cursor:"pointer",whiteSpace:"nowrap"});
+const rTab=(on,col)=>({padding:"4px 9px",background:on?(col||"#c8a96e")+"22":"transparent",border:"1px solid "+(on?(col||"#c8a96e")+"88":"#333"),borderRadius:"6px",color:on?(col||"#c8a96e"):C.muted,fontFamily:"'Cinzel',serif",fontSize:"13px",cursor:"pointer",whiteSpace:"nowrap"});
 
 function CardThumb({card,w,dim,badge,onClick,sub}){
   const rc=RARCOL[cRar(card)]||"#888";
@@ -506,9 +521,9 @@ function CardThumb({card,w,dim,badge,onClick,sub}){
         onMouseLeave={()=>setHz(null)}
         style={{position:"relative",borderRadius:"7px",overflow:"hidden",border:"1px solid "+rc+"66",background:"#0b0c14",cursor:onClick?"pointer":"default"}}>
         <img src={cImg(card)} alt={cName(card)} loading="lazy" style={{width:"100%",display:"block"}} onError={e=>{e.target.style.opacity=0;}}/>
-        {badge!==undefined && <div style={{position:"absolute",top:"3px",right:"3px",background:"rgba(0,0,0,.82)",border:"1px solid #c8a96e66",borderRadius:"10px",padding:"1px 6px",fontFamily:"'Cinzel',serif",fontSize:"11px",color:C.gold,fontWeight:600}}>{badge}</div>}
+        {badge!==undefined && <div style={{position:"absolute",top:"3px",right:"3px",background:"rgba(0,0,0,.82)",border:"1px solid #c8a96e66",borderRadius:"10px",padding:"1px 6px",fontFamily:"'Cinzel',serif",fontSize:"13px",color:C.gold,fontWeight:600}}>{badge}</div>}
       </div>
-      {sub!==undefined && <div style={{fontSize:"11px",color:"#e8a488",textAlign:"center",marginTop:"2px"}}>{sub}</div>}
+      {sub!==undefined && <div style={{fontSize:"13px",color:"#e8a488",textAlign:"center",marginTop:"2px"}}>{sub}</div>}
       {hz && ReactDOM.createPortal(
         <div style={{position:"fixed",left:Math.min(hz.x+18,(window.innerWidth||400)-250),top:Math.max(8,Math.min(hz.y-170,(window.innerHeight||600)-370)),width:"238px",zIndex:9999,pointerEvents:"none",borderRadius:"12px",overflow:"hidden",boxShadow:"0 12px 44px rgba(0,0,0,.85)",border:"2px solid "+rc}}>
           <img src={cImg(card)} alt="" style={{width:"100%",display:"block"}}/>
@@ -522,7 +537,7 @@ function StarterSelect({starters,db,onPick}){
   return (
     <div style={{padding:"16px 18px",maxWidth:"720px",margin:"0 auto"}} className="fu">
       <div style={{...sLbl,marginBottom:"4px",textAlign:"center"}}>Choose your deck</div>
-      <div style={{fontSize:"13px",color:C.muted,textAlign:"center",marginBottom:"16px",lineHeight:1.6}}>Pick one starter deck. You can't change your choice until the season ends. You'll shape it by buying cards, opening packs, and removing cards.</div>
+      <div style={{fontSize:"16px",color:C.muted,textAlign:"center",marginBottom:"16px",lineHeight:1.6}}>Pick one starter deck. You can't change your choice until the season ends. You'll shape it by buying cards, opening packs, and removing cards.</div>
       <div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
         {starters.map(s=>{
           const champs=s.codes.filter(c=>isChampCode(db,c)).slice(0,4).map(c=>db.by[c]).filter(Boolean);
@@ -531,15 +546,15 @@ function StarterSelect({starters,db,onPick}){
             <div key={s.name} onClick={()=>setSel(s.name)} className="btn" style={{...sCard,cursor:"pointer",border:"1px solid "+(on?"#c8a96e":"#c8a96e22"),background:on?"#c8a96e0f":C.surface,display:"flex",alignItems:"center",gap:"12px"}}>
               <div style={{display:"flex",gap:"4px"}}>{champs.map(c=><img key={cCode(c)} src={cImg(c)} alt="" style={{width:"36px",borderRadius:"5px",border:"1px solid #c8a96e44"}} onError={e=>{e.target.style.visibility="hidden";}}/>)}</div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontFamily:"'Cinzel',serif",color:on?C.gold:C.text,fontSize:"15px",fontWeight:600}}>{s.name}</div>
-                <div style={{fontSize:"12px",color:C.muted}}>{s.codes.length} cards</div>
+                <div style={{fontFamily:"'Cinzel',serif",color:on?C.gold:C.text,fontSize:"18px",fontWeight:600}}>{s.name}</div>
+                <div style={{fontSize:"15px",color:C.muted}}>{s.codes.length} cards · <a href={deckUrl(s.codes.map(c=>({code:c,count:1})))} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{color:"#5599cc",textDecoration:"none"}}>preview ↗</a></div>
               </div>
-              {on && <div style={{color:C.gold,fontSize:"20px"}}>✓</div>}
+              {on && <div style={{color:C.gold,fontSize:"24px"}}>✓</div>}
             </div>
           );
         })}
       </div>
-      <button className="btn" disabled={!sel} onClick={()=>onPick(sel, starters.find(s=>s.name===sel).codes.map(c=>({code:c,count:1})))} style={{width:"100%",marginTop:"16px",padding:"14px",background:sel?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"10px",color:sel?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:900,letterSpacing:".08em"}}>{sel?("Lock in "+sel):"Select a deck"}</button>
+      <button className="btn" disabled={!sel} onClick={()=>onPick(sel, starters.find(s=>s.name===sel).codes.map(c=>({code:c,count:1})))} style={{width:"100%",marginTop:"16px",padding:"14px",background:sel?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"10px",color:sel?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900,letterSpacing:".08em"}}>{sel?("Lock in "+sel):"Select a deck"}</button>
     </div>
   );
 }
@@ -576,21 +591,21 @@ function DeckView({db,deck,locked,coins,onRemove}){
     <div style={{padding:"14px 18px",maxWidth:"760px",margin:"0 auto"}} className="fu">
       <div style={{...sCard,display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px",padding:"12px 16px"}}>
         <div>
-          <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"15px",fontWeight:600}}>{total} cards</div>
-          <div style={{fontSize:"12px",color:C.muted}}>{uniqueChamps(db,deck)}/{ECON.MAX_CHAMPS} champions · min {ECON.DECK_FLOOR} · max {ECON.DECK_MAX}</div>
+          <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"18px",fontWeight:600}}>{total} cards</div>
+          <div style={{fontSize:"15px",color:C.muted}}>{uniqueChamps(db,deck)}/{ECON.MAX_CHAMPS} champions · min {ECON.DECK_FLOOR} · max {ECON.DECK_MAX}</div>
         </div>
         {locked
-          ? <div style={{fontSize:"11px",color:"#a66",fontFamily:"'Cinzel',serif",textAlign:"right",maxWidth:"150px"}}>Locked for the matchday</div>
+          ? <div style={{fontSize:"13px",color:"#a66",fontFamily:"'Cinzel',serif",textAlign:"right",maxWidth:"150px"}}>Locked for the matchday</div>
           : (!sellMode
-              ? <button className="btn" disabled={batch<=0} onClick={()=>setSellMode(true)} style={{padding:"8px 14px",background:batch>0?"#2a1410":"#111",border:"1px solid "+(batch>0?"#cc664455":"#333"),borderRadius:"8px",color:batch>0?"#e8a488":C.faint,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>Buy removal</button>
-              : <button className="btn" onClick={()=>{setSellMode(false);setSel({});}} style={{padding:"8px 14px",background:"transparent",border:"1px solid #333",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>Cancel</button>)}
+              ? <button className="btn" disabled={batch<=0} onClick={()=>setSellMode(true)} style={{padding:"8px 14px",background:batch>0?"#2a1410":"#111",border:"1px solid "+(batch>0?"#cc664455":"#333"),borderRadius:"8px",color:batch>0?"#e8a488":C.faint,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Buy removal</button>
+              : <button className="btn" onClick={()=>{setSellMode(false);setSel({});}} style={{padding:"8px 14px",background:"transparent",border:"1px solid #333",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Cancel</button>)}
       </div>
       {sellMode && (
         <div style={{...sCard,marginBottom:"12px",padding:"12px 16px",background:"#1a0f0a",borderColor:"#cc664433"}}>
-          <div style={{fontSize:"12.5px",color:"#e8b9a8",lineHeight:1.6,marginBottom:"10px"}}><strong style={{color:"#ffd9c8"}}>Remove up to {batch} cards.</strong> You don't have to remove them all. It costs <strong style={{color:C.gold}}>{cost} coins</strong> no matter how many you remove. Tap a card to select it; tap again to add more copies.</div>
+          <div style={{fontSize:"15px",color:"#e8b9a8",lineHeight:1.6,marginBottom:"10px"}}><strong style={{color:"#ffd9c8"}}>Remove up to {batch} cards.</strong> You don't have to remove them all. It costs <strong style={{color:C.gold}}>{cost} coins</strong> no matter how many you remove. Tap a card to select it; tap again to add more copies.</div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px"}}>
-            <div style={{fontSize:"13px",color:C.text}}>Selected {selTotal}/{batch} · cost {cost}{coins<cost?" (not enough coins)":""}</div>
-            <button className="btn" disabled={selTotal<1||coins<cost} onClick={confirm} style={{flexShrink:0,padding:"8px 16px",background:selTotal>=1&&coins>=cost?"linear-gradient(135deg,#cc6644,#aa4422)":"#111",border:"none",borderRadius:"8px",color:selTotal>=1&&coins>=cost?"#fff":C.faint,fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:700}}>Confirm ({selTotal})</button>
+            <div style={{fontSize:"16px",color:C.text}}>Selected {selTotal}/{batch} · cost {cost}{coins<cost?" (not enough coins)":""}</div>
+            <button className="btn" disabled={selTotal<1||coins<cost} onClick={confirm} style={{flexShrink:0,padding:"8px 16px",background:selTotal>=1&&coins>=cost?"linear-gradient(135deg,#cc6644,#aa4422)":"#111",border:"none",borderRadius:"8px",color:selTotal>=1&&coins>=cost?"#fff":C.faint,fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:700}}>Confirm ({selTotal})</button>
           </div>
         </div>
       )}
@@ -610,8 +625,8 @@ function Store({db,deck,coins,locked,onBuy}){
   return (
     <div style={{padding:"14px 18px",maxWidth:"860px",margin:"0 auto"}} className="fu">
       <div style={{...sCard,marginBottom:"12px",padding:"12px 14px"}}>
-        <div style={{fontSize:"12px",color:C.muted,marginBottom:"8px",lineHeight:1.5}}>Buy any card directly for its coin price. {locked?"Locked for the matchday.":""}</div>
-        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search cards" style={{...sInp,marginBottom:"8px",fontSize:"15px"}}/>
+        <div style={{fontSize:"15px",color:C.muted,marginBottom:"8px",lineHeight:1.5}}>Buy any card directly for its coin price. {locked?"Locked for the matchday.":""}</div>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search cards" style={{...sInp,marginBottom:"8px",fontSize:"18px"}}/>
         <div style={{display:"flex",gap:"5px",flexWrap:"wrap"}}>
           <button className="btn" onClick={()=>setReg("all")} style={rTab(reg==="all")}>All</button>
           {REGIONS.map(r=><RegBtn key={r} r={r} on={reg===r} onClick={()=>setReg(r)} small={true}/>)}
@@ -622,12 +637,12 @@ function Store({db,deck,coins,locked,onBuy}){
           return (
             <div key={cCode(c)} style={{width:"92px"}}>
               <CardThumb card={c} w={92} badge={price} dim={!!block}/>
-              <button className="btn" disabled={!can} onClick={()=>onBuy(cCode(c),price)} style={{width:"100%",marginTop:"3px",padding:"4px 2px",background:can?"#c8a96e18":"#0d0f18",border:"1px solid "+(can?"#c8a96e55":"#222"),borderRadius:"6px",color:can?C.gold:"#666",fontFamily:"'Cinzel',serif",fontSize:"10px"}}>{block?block:(locked?"Locked":(coins<price?("Need "+price):("Buy "+price)))}</button>
+              <button className="btn" disabled={!can} onClick={()=>onBuy(cCode(c),price)} style={{width:"100%",marginTop:"3px",padding:"4px 2px",background:can?"#c8a96e18":"#0d0f18",border:"1px solid "+(can?"#c8a96e55":"#222"),borderRadius:"6px",color:can?C.gold:"#666",fontFamily:"'Cinzel',serif",fontSize:"13px"}}>{block?block:(locked?"Locked":(coins<price?("Need "+price):("Buy "+price)))}</button>
             </div>
           ); })}
       </div>
       {shown.length===0 && <div style={{...sCard,textAlign:"center",color:C.muted,marginTop:"10px"}}>No cards found.</div>}
-      {list.length>120 && <div style={{textAlign:"center",color:C.muted,fontSize:"12px",marginTop:"12px"}}>Showing first 120 · refine with search or a region.</div>}
+      {list.length>120 && <div style={{textAlign:"center",color:C.muted,fontSize:"15px",marginTop:"12px"}}>Showing first 120 · refine with search or a region.</div>}
     </div>
   );
 }
@@ -649,8 +664,8 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
   return (
     <div style={{padding:"18px",maxWidth:"940px",margin:"0 auto"}}>
       <div className="fu">
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:C.gold,fontWeight:600,letterSpacing:".05em",marginBottom:"4px"}}>Buy Packs</div>
-        <div style={{fontSize:"13.5px",color:C.muted,marginBottom:"18px"}}>Open a pack for {ECON.PACK_COST} coin and keep one of the five cards. {locked?"Locked for the matchday.":""}</div>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:"18px",color:C.gold,fontWeight:600,letterSpacing:".05em",marginBottom:"4px"}}>Buy Packs</div>
+        <div style={{fontSize:"16px",color:C.muted,marginBottom:"18px"}}>Open a pack for {ECON.PACK_COST} coin and keep one of the five cards. {locked?"Locked for the matchday.":""}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(148px,1fr))",gap:"14px"}}>
           {REGIONS.map(r=>{ const canOpen=!locked&&coins>=ECON.PACK_COST; const rune=db.runeChamps[r]||[];
             return (
@@ -658,9 +673,9 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
                 <div className="shine" style={{position:"absolute",top:0,left:"-45%",width:"45%",height:"100%",background:"linear-gradient(90deg,transparent,#ffffff20,transparent)",transform:"skewX(-20deg)",pointerEvents:"none"}}/>
                 <div style={{position:"absolute",top:"8px",left:0,right:0,height:"1px",background:"linear-gradient(90deg,transparent,"+REGCOL[r]+"88,transparent)"}}/>
                 <RegionLogo r={r} size={62}/>
-                <div style={{fontFamily:"'Cinzel',serif",color:REGCOL[r],fontSize:"15px",fontWeight:700,textAlign:"center",letterSpacing:".03em"}}>{r}</div>
-                {rune.length>0 && <div style={{fontSize:"10.5px",color:"#8c8578",textAlign:"center",lineHeight:1.3}}>{rune.join(", ")}</div>}
-                <div style={{marginTop:"auto",background:"#00000066",border:"1px solid "+REGCOL[r]+"66",borderRadius:"16px",padding:"5px 14px",fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"13.5px",fontWeight:700}}>{ECON.PACK_COST} coin</div>
+                <div style={{fontFamily:"'Cinzel',serif",color:REGCOL[r],fontSize:"18px",fontWeight:700,textAlign:"center",letterSpacing:".03em"}}>{r}</div>
+                {rune.length>0 && <div style={{fontSize:"13px",color:"#8c8578",textAlign:"center",lineHeight:1.3}}>{rune.join(", ")}</div>}
+                <div style={{marginTop:"auto",background:"#00000066",border:"1px solid "+REGCOL[r]+"66",borderRadius:"16px",padding:"5px 14px",fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"16px",fontWeight:700}}>{ECON.PACK_COST} coin</div>
               </div>
             ); })}
         </div>
@@ -671,7 +686,7 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
           <div className="pk-flash" style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"radial-gradient(circle at 50% 42%,#ffffff,"+rayCol+"aa 26%,transparent 58%)",pointerEvents:"none"}}/>
           {pack.parts.map((p,i)=><div key={i} className="pk-particle" style={{position:"absolute",top:"42%",left:"50%",width:p.s+"px",height:p.s+"px",borderRadius:"50%",background:rayCol,boxShadow:"0 0 9px "+rayCol,"--tx":p.tx+"px","--ty":p.ty+"px",animationDelay:p.dl+"s",pointerEvents:"none"}}/>)}
           {bestRar>=2 && <div className="pk-banner" style={{position:"relative",fontFamily:"'Cinzel',serif",color:bestRar>=3?"#ffd76a":"#e6a6ff",fontSize:"clamp(22px,5.5vw,36px)",fontWeight:900,letterSpacing:".14em",marginBottom:"10px",textShadow:"0 0 32px "+(bestRar>=3?"#ffcc44":"#c060d0")}}>{bestRar>=3?"CHAMPION PULL":"EPIC PULL"}</div>}
-          <div style={{position:"relative",fontFamily:"'Cinzel',serif",color:REGCOL[pack.reg],fontSize:"15px",fontWeight:600,letterSpacing:".05em",marginBottom:"18px"}}>{pack.reg}</div>
+          <div style={{position:"relative",fontFamily:"'Cinzel',serif",color:REGCOL[pack.reg],fontSize:"18px",fontWeight:600,letterSpacing:".05em",marginBottom:"18px"}}>{pack.reg}</div>
           <div style={{display:"flex",gap:"12px",flexWrap:"wrap",justifyContent:"center",maxWidth:"880px",position:"relative"}}>
             {pack.cards.map((code,i)=>{ const c=db.by[code]; if(!c)return null; const block=deckRuleBlock(db,deck,code); const on=pack.sel===code; const rc=RARCOL[cRar(c)]; const rare=cRar(c)>=2;
               return (
@@ -680,14 +695,14 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
                     <div style={{borderRadius:"11px",overflow:"hidden",border:"2px solid "+(on?C.gold:block?"#a44a4a55":rc+"aa"),opacity:block?0.4:1,"--gc":(on?C.gold:rc)+(rare?"cc":"66"),boxShadow:on?"0 0 30px #c8a96e":(rare?"0 0 20px "+rc+"99":"none"),animation:(rare&&!block)?("glowpulse 1.7s ease "+(1.1+i*0.15).toFixed(2)+"s infinite"):"none"}}>
                       <img src={cImg(c)} alt={cName(c)} style={{width:"100%",display:"block"}} onError={e=>{e.target.style.opacity=0;}}/>
                     </div>
-                    <div style={{fontSize:"11px",textAlign:"center",marginTop:"4px",color:block?"#e07a7a":"#9c917b"}}>{block?block:(cCoin(c)+" coins")}</div>
+                    <div style={{fontSize:"13px",textAlign:"center",marginTop:"4px",color:block?"#e07a7a":"#9c917b"}}>{block?block:(cCoin(c)+" coins")}</div>
                   </div>
                 </div>
               ); })}
           </div>
           <div className="pk-btns" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"11px",marginTop:"26px",position:"relative"}}>
-            <button className="btn" onClick={done} style={{padding:"13px 30px",background:pack.sel?"linear-gradient(135deg,#c8a96e,#9a7440)":"transparent",border:"1px solid "+(pack.sel?"transparent":"#555"),borderRadius:"10px",color:pack.sel?C.bg:C.text,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:pack.sel?900:600}}>{pack.sel?("Add "+cName(db.by[pack.sel])+" to deck"):"Take nothing"}</button>
-            {!locked && coins>=ECON.PACK_COST && <button className="btn" onClick={()=>{const r=pack.reg; done(); setTimeout(()=>open(r),150);}} style={{padding:"12px 28px",background:"linear-gradient(135deg,"+REGCOL[pack.reg]+"dd,"+REGCOL[pack.reg]+"88)",border:"none",borderRadius:"10px",color:"#0a0c14",fontFamily:"'Cinzel',serif",fontSize:"13.5px",fontWeight:900,letterSpacing:".05em",boxShadow:"0 0 22px "+REGCOL[pack.reg]+"66"}}>Open another ({coins} coins)</button>}
+            <button className="btn" onClick={done} style={{padding:"13px 30px",background:pack.sel?"linear-gradient(135deg,#c8a96e,#9a7440)":"transparent",border:"1px solid "+(pack.sel?"transparent":"#555"),borderRadius:"10px",color:pack.sel?C.bg:C.text,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:pack.sel?900:600}}>{pack.sel?("Add "+cName(db.by[pack.sel])+" to deck"):"Take nothing"}</button>
+            {!locked && coins>=ECON.PACK_COST && <button className="btn" onClick={()=>{const r=pack.reg; done(); setTimeout(()=>open(r),150);}} style={{padding:"12px 28px",background:"linear-gradient(135deg,"+REGCOL[pack.reg]+"dd,"+REGCOL[pack.reg]+"88)",border:"none",borderRadius:"10px",color:"#0a0c14",fontFamily:"'Cinzel',serif",fontSize:"16px",fontWeight:900,letterSpacing:".05em",boxShadow:"0 0 22px "+REGCOL[pack.reg]+"66"}}>Open another ({coins} coins)</button>}
           </div>
         </div>
       )}
@@ -764,10 +779,11 @@ function encodeDeck(cards){
 }
 function deckUrl(deck){ const c=encodeDeck(deck||[]); return c?("https://runeterra.ar/decks/code/"+c):null; }
 
+function TournamentNameInput({name,onSet}){ const [v,setV]=useState(name||""); return <input value={v} onChange={e=>{setV(e.target.value);onSet(e.target.value);}} placeholder="Tournament name" style={{...sInp,fontSize:"16px",width:"100%"}}/>; }
 function toLocalDT(ts){ const off=new Date(ts).getTimezoneOffset()*60000; return new Date(ts-off).toISOString().slice(0,16); }
 function StartTimeInput({startTime,onSet}){
   const [v,setV]=useState(()=>toLocalDT(startTime));
-  return <input type="datetime-local" value={v} onChange={e=>{ setV(e.target.value); const ts=new Date(e.target.value).getTime(); if(!isNaN(ts)) onSet(ts); }} style={{...sInp,width:"auto",flex:1,fontSize:"14px",colorScheme:"dark"}}/>;
+  return <input type="datetime-local" value={v} onChange={e=>{ setV(e.target.value); const ts=new Date(e.target.value).getTime(); if(!isNaN(ts)) onSet(ts); }} style={{...sInp,width:"auto",flex:1,fontSize:"17px",colorScheme:"dark"}}/>;
 }
 function SignUpForm({onSubmit,me,data}){
   const u=data.users[me]||{};
@@ -777,10 +793,10 @@ function SignUpForm({onSubmit,me,data}){
   return (
     <div>
       <div style={{...sLbl,marginBottom:"8px"}}>Sign up for the tournament</div>
-      <div style={{fontSize:"12.5px",color:C.muted,lineHeight:1.6,marginBottom:"12px"}}>Enter your Riot ID and Discord ID to register. After signing up you can view the other players' decks below.</div>
-      <input value={riot} onChange={e=>setRiot(e.target.value)} placeholder="Riot ID (Name#TAG)" style={{...sInp,marginBottom:"8px",fontSize:"15px"}}/>
-      <input value={disc} onChange={e=>setDisc(e.target.value)} placeholder="Discord ID" style={{...sInp,marginBottom:"12px",fontSize:"15px"}}/>
-      <button className="btn" disabled={!ok} onClick={()=>onSubmit(riot.trim(),disc.trim())} style={{width:"100%",padding:"13px",background:ok?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"10px",color:ok?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:900,letterSpacing:".04em"}}>Sign up</button>
+      <div style={{fontSize:"15px",color:C.muted,lineHeight:1.6,marginBottom:"12px"}}>Enter your Riot ID and Discord ID to register. After signing up you can view the other players' decks below.</div>
+      <input value={riot} onChange={e=>setRiot(e.target.value)} placeholder="Riot ID (Name#TAG)" style={{...sInp,marginBottom:"8px",fontSize:"18px"}}/>
+      <input value={disc} onChange={e=>setDisc(e.target.value)} placeholder="Discord ID" style={{...sInp,marginBottom:"12px",fontSize:"18px"}}/>
+      <button className="btn" disabled={!ok} onClick={()=>onSubmit(riot.trim(),disc.trim())} style={{width:"100%",padding:"13px",background:ok?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"10px",color:ok?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:900,letterSpacing:".04em"}}>Sign up</button>
     </div>
   );
 }
@@ -795,9 +811,10 @@ function Tournament({data,me,role,mutate}){
 
   const [nowTs,setNowTs]=useState(Date.now());
   useEffect(()=>{ const id=setInterval(()=>setNowTs(Date.now()),30000); return ()=>clearInterval(id); },[]);
-  function openTournament(){ mutate(d=>{ d.tournament={phase:"signup",server:"EMEA",startTime:Date.now()+2*3600000,signups:{},checkin:{}}; return d; }); }
+  function openTournament(){ mutate(d=>{ d.tournament={phase:"signup",name:"",server:"EMEA",startTime:Date.now()+2*3600000,signups:{},checkin:{}}; return d; }); }
   function setStart(ts){ mutate(d=>{ d.tournament.startTime=ts; return d; }); }
   function setServer(sv){ mutate(d=>{ d.tournament.server=sv; return d; }); }
+  function setName(nm){ mutate(d=>{ d.tournament.name=nm; return d; }); }
   function signUp(riot,disc){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups)tt.signups={}; tt.signups[me]={riotId:riot,discordId:disc}; if(d.users[me]){ d.users[me].riotId=riot; d.users[me].discordId=disc; } return d; }); }
   function startSwiss(){ mutate(d=>{ const list=Object.keys(d.tournament.checkin||{}); if(list.length<2)return d; const R=swissRounds(list.length); const order=shuffle(list); const rc=computeRecords(list,[]); const m=pairRound(order,rc); d.tournament={phase:"swiss",checkin:d.tournament.checkin,players:list,round:1,totalRounds:R,rounds:[{matches:m}]}; return d; }); }
   function confirmMatch(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(!mm.report)return d; mm.winner=mm.report.winner; mm.confirmed=true; return d; }); }
@@ -819,10 +836,10 @@ function Tournament({data,me,role,mutate}){
   if(t.phase==="idle"){
     return <div style={wrap} className="fu"><div style={{...box,textAlign:"center"}}>
       <div style={{...sLbl,marginBottom:"8px"}}>Tournament</div>
-      <div style={{fontSize:"13px",color:C.muted,lineHeight:1.6,marginBottom:isAdmin?"14px":0}}>No tournament is running right now.</div>
+      <div style={{fontSize:"16px",color:C.muted,lineHeight:1.6,marginBottom:isAdmin?"14px":0}}>No tournament is running right now.</div>
       {isAdmin&&(data.prepEnded
-        ? <button className="btn" onClick={openTournament} style={{padding:"11px 22px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900}}>Open new tournament</button>
-        : <div style={{fontSize:"12px",color:"#a66",fontFamily:"'Cinzel',serif"}}>End Prep Time first to open a tournament.</div>)}
+        ? <button className="btn" onClick={openTournament} style={{padding:"11px 22px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"16px",fontWeight:900}}>Open new tournament</button>
+        : <div style={{fontSize:"15px",color:"#a66",fontFamily:"'Cinzel',serif"}}>End Prep Time first to open a tournament.</div>)}
     </div></div>;
   }
 
@@ -837,28 +854,29 @@ function Tournament({data,me,role,mutate}){
     const rel=mins>0?(mins>=60?("in "+Math.floor(mins/60)+"h "+(mins%60)+"m"):("in "+mins+"m")):"now";
     return <div style={wrap} className="fu">
       <div style={box}>
-        <div style={{...sLbl,marginBottom:"6px"}}>Tournament sign-ups open</div>
+        <div style={{...sLbl,marginBottom:"6px"}}>{t.name?t.name+" · sign-ups open":"Tournament sign-ups open"}</div>
         <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:"8px"}}>
-          <div style={{fontSize:"14px",color:C.text}}>Starts <strong style={{color:C.gold}}>{startLocal}</strong> <span style={{color:C.muted,fontSize:"12px"}}>({rel}, your local time)</span></div>
-          <div style={{fontSize:"13px",color:REGCOL[t.server==="AM"?"Demacia":"Freljord"],fontFamily:"'Cinzel',serif"}}>Server: {t.server}</div>
+          <div style={{fontSize:"17px",color:C.text}}>Starts <strong style={{color:C.gold}}>{startLocal}</strong> <span style={{color:C.muted,fontSize:"15px"}}>({rel}, your local time)</span></div>
+          <div style={{fontSize:"16px",color:REGCOL[t.server==="AM"?"Demacia":"Freljord"],fontFamily:"'Cinzel',serif"}}>Server: {t.server}</div>
         </div>
       </div>
 
       {isAdmin&&<div style={box}>
         <div style={{...sLbl,marginBottom:"10px"}}>Tournament settings</div>
+        <div style={{marginBottom:"12px"}}><div style={{fontSize:"14px",color:C.muted,marginBottom:"6px"}}>Tournament name</div><TournamentNameInput name={t.name} onSet={setName}/></div>
         <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px",flexWrap:"wrap"}}>
-          <span style={{fontSize:"12px",color:C.muted,width:"70px"}}>Start time</span>
+          <span style={{fontSize:"15px",color:C.muted,width:"70px"}}>Start time</span>
           <StartTimeInput startTime={t.startTime} onSet={setStart}/>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"12px"}}>
-          <span style={{fontSize:"12px",color:C.muted,width:"70px"}}>Server</span>
-          {["EMEA","AM"].map(sv=><button key={sv} className="btn" onClick={()=>setServer(sv)} style={{padding:"6px 16px",background:t.server===sv?"#c8a96e22":"transparent",border:"1px solid "+(t.server===sv?"#c8a96eaa":"#333"),borderRadius:"7px",color:t.server===sv?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>{sv}</button>)}
+          <span style={{fontSize:"15px",color:C.muted,width:"70px"}}>Server</span>
+          {["EMEA","AM"].map(sv=><button key={sv} className="btn" onClick={()=>setServer(sv)} style={{padding:"6px 16px",background:t.server===sv?"#c8a96e22":"transparent",border:"1px solid "+(t.server===sv?"#c8a96eaa":"#333"),borderRadius:"7px",color:t.server===sv?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{sv}</button>)}
         </div>
         <div style={{display:"flex",gap:"8px"}}>
-          <button className="btn" disabled={ci.length<2} onClick={startSwiss} style={{flex:1,padding:"11px",background:ci.length>=2?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"9px",color:ci.length>=2?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900}}>Start Swiss round 1 ({ci.length} checked in)</button>
-          <button className="btn" onClick={reset} style={{padding:"11px 16px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"9px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"12px"}}>Cancel</button>
+          <button className="btn" disabled={ci.length<2} onClick={startSwiss} style={{flex:1,padding:"11px",background:ci.length>=2?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"9px",color:ci.length>=2?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"16px",fontWeight:900}}>Start Swiss round 1 ({ci.length} checked in)</button>
+          <button className="btn" onClick={reset} style={{padding:"11px 16px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"9px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Cancel</button>
         </div>
-        <div style={{fontSize:"10.5px",color:"#5a5347",marginTop:"8px"}}>Only checked-in players are seeded. Anyone who did not check in is dropped.</div>
+        <div style={{fontSize:"13px",color:"#5a5347",marginTop:"8px"}}>Only checked-in players are seeded. Anyone who did not check in is dropped.</div>
       </div>}
 
       {isPlayer&&<div style={box}>
@@ -866,26 +884,26 @@ function Tournament({data,me,role,mutate}){
           ? <SignUpForm onSubmit={signUp} me={me} data={data}/>
           : <div>
               <div style={{...sLbl,marginBottom:"8px"}}>You are registered</div>
-              <div style={{fontSize:"13px",color:C.muted,marginBottom:"12px"}}>Riot ID: <strong style={{color:C.text}}>{su[me].riotId}</strong> · Discord: <strong style={{color:C.text}}>{su[me].discordId}</strong></div>
+              <div style={{fontSize:"16px",color:C.muted,marginBottom:"12px"}}>Riot ID: <strong style={{color:C.text}}>{su[me].riotId}</strong> · Discord: <strong style={{color:C.text}}>{su[me].discordId}</strong></div>
               {inCi
-                ? <div style={{padding:"11px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"9px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"13px",textAlign:"center"}}>Checked in for the matchday</div>
+                ? <div style={{padding:"11px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"9px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"16px",textAlign:"center"}}>Checked in</div>
                 : (ciOpen
-                    ? <button className="btn" onClick={checkIn} style={{width:"100%",padding:"13px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"10px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:900,letterSpacing:".04em"}}>Check in (+5 coins)</button>
-                    : <div style={{padding:"11px",background:"#0d0f18",border:"1px solid #333",borderRadius:"9px",color:C.muted,fontSize:"12.5px",textAlign:"center"}}>Check-in opens at {ciLocal} (1 hour before start). If you miss it, you are dropped.</div>)}
+                    ? <button className="btn" onClick={checkIn} style={{width:"100%",padding:"13px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"10px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:900,letterSpacing:".04em"}}>Check in (+5 coins)</button>
+                    : <div style={{padding:"11px",background:"#0d0f18",border:"1px solid #333",borderRadius:"9px",color:C.muted,fontSize:"15px",textAlign:"center"}}>Check-in opens at {ciLocal} (1 hour before start). If you miss it, you are dropped.</div>)}
             </div>}
       </div>}
 
       <div style={box}>
         <div style={{...sLbl,marginBottom:"10px"}}>Registered ({suList.length})</div>
-        {suList.length===0&&<div style={{fontSize:"13px",color:C.muted}}>Nobody yet.</div>}
+        {suList.length===0&&<div style={{fontSize:"16px",color:C.muted}}>Nobody yet.</div>}
         {suList.map(n=>{ const u=data.users[n]||{}; const url=deckUrl(u.deck); const checked=t.checkin&&t.checkin[n];
           return (
             <div key={n} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"10px",padding:"8px 0",borderBottom:"1px solid #c8a96e10"}}>
               <div style={{minWidth:0}}>
-                <div style={{fontSize:"13.5px",color:C.text}}>{n}{checked?<span style={{color:"#6ac68a",fontSize:"11px",fontFamily:"'Cinzel',serif"}}> · checked in</span>:null}</div>
-                <div style={{fontSize:"11px",color:C.muted}}>{su[n].riotId}</div>
+                <div style={{fontSize:"16px",color:C.text}}>{n}{checked?<span style={{color:"#6ac68a",fontSize:"13px",fontFamily:"'Cinzel',serif"}}> · checked in</span>:null}</div>
+                <div style={{fontSize:"13px",color:C.muted}}>{su[n].riotId}</div>
               </div>
-              {url?<a href={url} target="_blank" rel="noopener noreferrer" style={{flexShrink:0,fontSize:"12px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>view deck ↗</a>:<span style={{fontSize:"11px",color:"#3a3a3a"}}>no deck</span>}
+              {url?<a href={url} target="_blank" rel="noopener noreferrer" style={{flexShrink:0,fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>view deck ↗</a>:<span style={{fontSize:"13px",color:"#3a3a3a"}}>no deck</span>}
             </div>
           ); })}
       </div>
@@ -895,40 +913,40 @@ function Tournament({data,me,role,mutate}){
   if(t.phase==="triangle" || t.phase==="done"){
     const tri=t.tri||{};
     const nm=n=>n||"-";
-    const nameCell=(k,nm)=>{ const m=tri[k]; if(!nm) return <div style={{padding:"5px 6px",borderRadius:"5px",background:"#0a0b10",border:"1px solid #1a1a1a",color:"#3a3a3a",fontSize:"11.5px"}}>-</div>;
+    const nameCell=(k,nm)=>{ const m=tri[k]; if(!nm) return <div style={{padding:"5px 6px",borderRadius:"5px",background:"#0a0b10",border:"1px solid #1a1a1a",color:"#3a3a3a",fontSize:"14px"}}>-</div>;
       const won=m.confirmed&&m.winner===nm; const pend=!m.confirmed&&m.report&&m.report.winner===nm; const mine=me&&(m.a===me||m.b===me); const clickable=m.a&&m.b&&!m.confirmed&&(mine||isAdmin);
       const onClick=clickable?()=>{ if(isAdmin) setTriWinner(k,nm); else reportTri(k,nm); }:undefined;
-      return <div onClick={onClick} className={clickable?"btn":""} style={{padding:"5px 7px",borderRadius:"5px",background:won?"#173217":pend?"#2a2400":"#0d0f18",border:"1px solid "+(won?"#3a6a3a":pend?"#5a4a1a":"#262626"),color:won?"#9d9":pend?"#e0b040":(nm===me?C.gold:C.text),fontSize:"11.5px",cursor:clickable?"pointer":"default",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontWeight:nm===me?600:400}}>{nm}</div>; };
+      return <div onClick={onClick} className={clickable?"btn":""} style={{padding:"5px 7px",borderRadius:"5px",background:won?"#173217":pend?"#2a2400":"#0d0f18",border:"1px solid "+(won?"#3a6a3a":pend?"#5a4a1a":"#262626"),color:won?"#9d9":pend?"#e0b040":(nm===me?C.gold:C.text),fontSize:"14px",cursor:clickable?"pointer":"default",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontWeight:nm===me?600:400}}>{nm}</div>; };
     const matchBox=(k)=>{ const m=tri[k]; if(!m) return null; const ready=m.a&&m.b; const pos=TRI_POS[k];
       return <div key={k} style={{gridColumn:pos.c,gridRow:pos.r,alignSelf:"center"}}>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:"9px",color:C.muted,marginBottom:"2px",letterSpacing:".08em"}}>{k}</div>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:"13px",color:C.muted,marginBottom:"2px",letterSpacing:".08em"}}>{k}</div>
         <div style={{display:"flex",flexDirection:"column",gap:"3px",padding:"4px",background:"#090b12",border:"1px solid "+(m.confirmed?"#c8a96e30":ready?"#2f2f2f":"#171717"),borderRadius:"7px",opacity:ready?1:0.45}}>
           {nameCell(k,m.a)}{nameCell(k,m.b)}
-          {isAdmin&&ready&&!m.confirmed&&m.report&&<button className="btn" onClick={()=>confirmTri(k)} style={{padding:"3px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"4px",color:"#8c8",fontSize:"9px",fontFamily:"'Cinzel',serif"}}>confirm {m.report.winner}</button>}
+          {isAdmin&&ready&&!m.confirmed&&m.report&&<button className="btn" onClick={()=>confirmTri(k)} style={{padding:"3px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"4px",color:"#8c8",fontSize:"13px",fontFamily:"'Cinzel',serif"}}>confirm {m.report.winner}</button>}
         </div>
       </div>; };
     const winBox=(k)=>{ const w=triW(tri,k); const pos=TRI_WIN[k]; const champ=k==="A1";
       return <div key={"w"+k} style={{gridColumn:pos.c,gridRow:pos.r,alignSelf:"center"}}>
         <div style={{padding:champ?"9px 6px":"8px 6px",borderRadius:"7px",background:champ?(w?"#2a2000":"#171200"):(w?"#142410":"#0d120a"),border:"1px solid "+(champ?(w?"#c8a96e":"#3a2f10"):(w?"#4a7a2a":"#243318")),textAlign:"center",boxShadow:champ&&w?"0 0 16px #c8a96e44":"none"}}>
-          <div style={{fontFamily:"'Cinzel',serif",fontSize:"8px",color:champ?"#c8a96e":"#7aaa4a",letterSpacing:".1em",marginBottom:"2px"}}>{champ?"CHAMPION":"Winner "+k}</div>
-          <div style={{fontSize:champ?"13px":"11.5px",color:w?(champ?C.gold:"#b8e090"):"#3a3a3a",fontWeight:champ?900:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{w||"—"}</div>
+          <div style={{fontFamily:"'Cinzel',serif",fontSize:"13px",color:champ?"#c8a96e":"#7aaa4a",letterSpacing:".1em",marginBottom:"2px"}}>{champ?"CHAMPION":"Winner "+k}</div>
+          <div style={{fontSize:champ?"16px":"14px",color:w?(champ?C.gold:"#b8e090"):"#3a3a3a",fontWeight:champ?900:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{w||"-"}</div>
         </div>
       </div>; };
     const loseBox=(k)=>{ const l=triL(tri,k); const pos=TRI_LOSE[k];
       return <div key={"l"+k} style={{gridColumn:pos.c,gridRow:pos.r,alignSelf:"center"}}>
         <div style={{padding:"6px",borderRadius:"6px",background:"#180c0c",border:"1px solid #4a2222",textAlign:"center"}}>
-          <div style={{fontSize:"7.5px",color:"#a66",fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>OUT · Loser {k}</div>
-          <div style={{fontSize:"10.5px",color:l?"#d88":"#3a2020",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l||"—"}</div>
+          <div style={{fontSize:"13px",color:"#a66",fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>OUT · Loser {k}</div>
+          <div style={{fontSize:"13px",color:l?"#d88":"#3a2020",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{l||"-"}</div>
         </div>
       </div>; };
     const pl=t.placements||{};
     return <div style={wrap} className="fu">
       <div style={{...box,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div><div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"15px",fontWeight:600}}>Triangle bracket</div><div style={{fontSize:"12px",color:C.muted}}>{t.phase==="done"?"Complete":"Top 8 from Swiss · tap a name to report"}</div></div>
-        {isAdmin&&<button className="btn" onClick={reset} style={{padding:"9px 12px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"8px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Reset</button>}
+        <div><div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"18px",fontWeight:600}}>Triangle bracket</div><div style={{fontSize:"15px",color:C.muted}}>{t.phase==="done"?"Complete":"Top 8 from Swiss · tap a name to report"}</div></div>
+        {isAdmin&&<button className="btn" onClick={reset} style={{padding:"9px 12px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"8px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"13px"}}>Reset</button>}
       </div>
       <div style={{...box,overflowX:"auto",paddingBottom:"14px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(108px,1fr))",gridTemplateRows:"repeat(5,auto)",gap:"7px 10px",minWidth:"600px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(140px,1fr))",gridTemplateRows:"repeat(5,auto)",gap:"9px 12px",minWidth:"760px"}}>
           {["A1","A2","A3","A4","B1","B2","B3","C1","C2","D1"].map(matchBox)}
           {["A1","B1","C1","D1"].map(winBox)}
           {["A4","B3","C2","D1"].map(loseBox)}
@@ -937,13 +955,13 @@ function Tournament({data,me,role,mutate}){
       {t.phase==="done"&&<div style={box}>
         <div style={{...sLbl,marginBottom:"10px"}}>Final placements · Aphrodite Points</div>
         {[1,2,3,4].map(k=>(<div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
-          <span style={{fontSize:"13px",color:C.text}}><strong style={{color:C.gold}}>{k}.</strong> {pl[k]||"-"}</span>
-          <span style={{fontSize:"12px",color:C.muted,fontFamily:"'Cinzel',serif"}}>+{({1:5,2:3,3:2,4:1})[k]} AP</span>
+          <span style={{fontSize:"16px",color:C.text}}><strong style={{color:C.gold}}>{k}.</strong> {pl[k]||"-"}</span>
+          <span style={{fontSize:"15px",color:C.muted,fontFamily:"'Cinzel',serif"}}>+{({1:5,2:3,3:2,4:1})[k]} AP</span>
         </div>))}
         {isAdmin&&(t.awarded
-          ? <div style={{marginTop:"10px",fontSize:"12px",color:"#6ac68a",fontFamily:"'Cinzel',serif",textAlign:"center"}}>Aphrodite Points awarded</div>
-          : <button className="btn" onClick={awardAP} style={{width:"100%",marginTop:"12px",padding:"11px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:900}}>Award Aphrodite Points (5/3/2/1)</button>)}
-        {isAdmin&&<div style={{fontSize:"10.5px",color:"#5a5347",marginTop:"8px",textAlign:"center"}}>Verify placements 2-4 match your bracket before awarding.</div>}
+          ? <div style={{marginTop:"10px",fontSize:"15px",color:"#6ac68a",fontFamily:"'Cinzel',serif",textAlign:"center"}}>Aphrodite Points awarded</div>
+          : <button className="btn" onClick={awardAP} style={{width:"100%",marginTop:"12px",padding:"11px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"16px",fontWeight:900}}>Award Aphrodite Points (5/3/2/1)</button>)}
+        {isAdmin&&<div style={{fontSize:"13px",color:"#5a5347",marginTop:"8px",textAlign:"center"}}>Verify placements 2-4 match your bracket before awarding.</div>}
       </div>}
     </div>;
   }
@@ -954,12 +972,12 @@ function Tournament({data,me,role,mutate}){
   const bl={winners:"",lb1:"",lb2:"",eliminated:""};
   return <div style={wrap} className="fu">
     <div style={{...box,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <div><div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"15px",fontWeight:600}}>Swiss</div><div style={{fontSize:"12px",color:C.muted}}>Round {t.round} of {t.totalRounds}</div></div>
+      <div><div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"18px",fontWeight:600}}>Swiss</div><div style={{fontSize:"15px",color:C.muted}}>Round {t.round} of {t.totalRounds}</div></div>
       {isAdmin&&<div style={{display:"flex",gap:"7px"}}>
         {t.round<t.totalRounds
-          ? <button className="btn" disabled={!allDone} onClick={nextRound} style={{padding:"9px 15px",background:allDone?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"8px",color:allDone?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:700}}>Next round</button>
-          : (allDone?<button className="btn" onClick={startTriangle} style={{padding:"9px 15px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"8px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"12px",fontWeight:900}}>Start Triangle</button>:<span style={{fontSize:"12px",color:C.muted,fontFamily:"'Cinzel',serif",alignSelf:"center"}}>Finish all matches</span>)}
-        <button className="btn" onClick={reset} style={{padding:"9px 12px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"8px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Reset</button>
+          ? <button className="btn" disabled={!allDone} onClick={nextRound} style={{padding:"9px 15px",background:allDone?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"8px",color:allDone?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:700}}>Next round</button>
+          : (allDone?<button className="btn" onClick={startTriangle} style={{padding:"9px 15px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"8px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:900}}>Start Triangle</button>:<span style={{fontSize:"15px",color:C.muted,fontFamily:"'Cinzel',serif",alignSelf:"center"}}>Finish all matches</span>)}
+        <button className="btn" onClick={reset} style={{padding:"9px 12px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"8px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"13px"}}>Reset</button>
       </div>}
     </div>
 
@@ -967,27 +985,27 @@ function Tournament({data,me,role,mutate}){
       <div style={{...sLbl,marginBottom:"10px"}}>Round {t.round} matches</div>
       {cur.matches.map((m,mi)=>{
         const mine=me&&(m.a===me||m.b===me);
-        if(m.bye) return <div key={mi} style={{padding:"9px 0",borderBottom:"1px solid #c8a96e10",fontSize:"13px",color:C.muted}}><strong style={{color:C.text}}>{m.a}</strong> has a bye (free win)</div>;
+        if(m.bye) return <div key={mi} style={{padding:"9px 0",borderBottom:"1px solid #c8a96e10",fontSize:"16px",color:C.muted}}><strong style={{color:C.text}}>{m.a}</strong> has a bye (free win)</div>;
         const rep=m.report;
         return (
           <div key={mi} style={{padding:"10px 0",borderBottom:"1px solid #c8a96e10"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px"}}>
-              <div style={{fontSize:"14px",color:C.text}}><strong style={{color:m.confirmed&&m.winner===m.a?"#6ac68a":C.text}}>{m.a}</strong> <span style={{color:C.muted,fontSize:"12px"}}>vs</span> <strong style={{color:m.confirmed&&m.winner===m.b?"#6ac68a":C.text}}>{m.b}</strong></div>
+              <div style={{fontSize:"17px",color:C.text}}><strong style={{color:m.confirmed&&m.winner===m.a?"#6ac68a":C.text}}>{m.a}</strong> <span style={{color:C.muted,fontSize:"15px"}}>vs</span> <strong style={{color:m.confirmed&&m.winner===m.b?"#6ac68a":C.text}}>{m.b}</strong></div>
               {m.confirmed
-                ? <span style={{fontSize:"12px",color:"#6ac68a",fontFamily:"'Cinzel',serif"}}>{m.winner} won{isAdmin?" ":""}</span>
-                : rep? <span style={{fontSize:"11.5px",color:"#e0b040",fontFamily:"'Cinzel',serif"}}>pending: {rep.winner} won</span>
-                : <span style={{fontSize:"11.5px",color:C.muted}}>not reported</span>}
+                ? <span style={{fontSize:"15px",color:"#6ac68a",fontFamily:"'Cinzel',serif"}}>{m.winner} won{isAdmin?" ":""}</span>
+                : rep? <span style={{fontSize:"14px",color:"#e0b040",fontFamily:"'Cinzel',serif"}}>pending: {rep.winner} won</span>
+                : <span style={{fontSize:"14px",color:C.muted}}>not reported</span>}
             </div>
             {mine&&!m.confirmed&&<div style={{display:"flex",gap:"7px",marginTop:"8px"}}>
-              <button className="btn" onClick={()=>report(t.round-1,mi,me)} style={{flex:1,padding:"8px",background:rep&&rep.winner===me?"#0d1a12":"#0d0f18",border:"1px solid "+(rep&&rep.winner===me?"#2a5a3a":"#333"),borderRadius:"7px",color:rep&&rep.winner===me?"#6ac68a":C.text,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>I won</button>
-              <button className="btn" onClick={()=>report(t.round-1,mi,m.a===me?m.b:m.a)} style={{flex:1,padding:"8px",background:"#0d0f18",border:"1px solid #333",borderRadius:"7px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px"}}>I lost</button>
+              <button className="btn" onClick={()=>report(t.round-1,mi,me)} style={{flex:1,padding:"8px",background:rep&&rep.winner===me?"#0d1a12":"#0d0f18",border:"1px solid "+(rep&&rep.winner===me?"#2a5a3a":"#333"),borderRadius:"7px",color:rep&&rep.winner===me?"#6ac68a":C.text,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>I won</button>
+              <button className="btn" onClick={()=>report(t.round-1,mi,m.a===me?m.b:m.a)} style={{flex:1,padding:"8px",background:"#0d0f18",border:"1px solid #333",borderRadius:"7px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>I lost</button>
             </div>}
             {isAdmin&&!m.confirmed&&<div style={{display:"flex",gap:"6px",marginTop:"8px"}}>
-              {rep&&<button className="btn" onClick={()=>confirmMatch(t.round-1,mi)} style={{padding:"6px 12px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"6px",color:"#8c8",fontFamily:"'Cinzel',serif",fontSize:"11px"}}>Confirm {rep.winner}</button>}
-              <button className="btn" onClick={()=>setWinner(t.round-1,mi,m.a)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"11px"}}>{m.a} won</button>
-              <button className="btn" onClick={()=>setWinner(t.round-1,mi,m.b)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"11px"}}>{m.b} won</button>
+              {rep&&<button className="btn" onClick={()=>confirmMatch(t.round-1,mi)} style={{padding:"6px 12px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"6px",color:"#8c8",fontFamily:"'Cinzel',serif",fontSize:"13px"}}>Confirm {rep.winner}</button>}
+              <button className="btn" onClick={()=>setWinner(t.round-1,mi,m.a)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"13px"}}>{m.a} won</button>
+              <button className="btn" onClick={()=>setWinner(t.round-1,mi,m.b)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"13px"}}>{m.b} won</button>
             </div>}
-            {isAdmin&&m.confirmed&&!m.bye&&<button className="btn" onClick={()=>undo(t.round-1,mi)} style={{marginTop:"6px",padding:"4px 10px",background:"transparent",border:"1px solid #4a2222",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"10.5px"}}>undo</button>}
+            {isAdmin&&m.confirmed&&!m.bye&&<button className="btn" onClick={()=>undo(t.round-1,mi)} style={{marginTop:"6px",padding:"4px 10px",background:"transparent",border:"1px solid #4a2222",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"13px"}}>undo</button>}
           </div>
         );
       })}
@@ -997,12 +1015,13 @@ function Tournament({data,me,role,mutate}){
       <div style={{...sLbl,marginBottom:"10px"}}>Standings</div>
       {stand.map((n,i)=>(
         <div key={n} style={{display:"flex",alignItems:"center",gap:"10px",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
-          <span style={{width:"20px",fontFamily:"'Cinzel',serif",color:i<8?C.gold:"#3a3a3a",fontSize:"13px",fontWeight:900}}>{i+1}</span>
-          <span style={{flex:1,fontSize:"13px",color:n===me?C.gold:C.text}}>{n}{data.users[n]&&data.users[n].riotId?<span style={{color:C.muted,fontSize:"11px"}}> · {data.users[n].riotId}</span>:null}</span>
-          <span style={{fontSize:"12px",color:C.muted,fontFamily:"'Cinzel',serif"}}>{rec[n].w}-{rec[n].l}</span>
+          <span style={{width:"20px",fontFamily:"'Cinzel',serif",color:i<8?C.gold:"#3a3a3a",fontSize:"16px",fontWeight:900}}>{i+1}</span>
+          <span style={{flex:1,fontSize:"16px",color:n===me?C.gold:C.text}}>{n}{data.users[n]&&data.users[n].riotId?<span style={{color:C.muted,fontSize:"13px"}}> · {data.users[n].riotId}</span>:null}</span>
+          {(()=>{const uu=data.users[n]||{};const url=deckUrl(uu.deck);return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:"13px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null;})()}
+          <span style={{fontSize:"15px",color:C.muted,fontFamily:"'Cinzel',serif"}}>{rec[n].w}-{rec[n].l}</span>
         </div>
       ))}
-      <div style={{fontSize:"11px",color:"#5a5347",marginTop:"8px"}}>Top 8 advance to the Triangle bracket.</div>
+      <div style={{fontSize:"13px",color:"#5a5347",marginTop:"8px"}}>Top 8 advance to the Triangle bracket.</div>
     </div>
   </div>;
 }
