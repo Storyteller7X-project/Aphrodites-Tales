@@ -626,7 +626,7 @@ function Store({db,deck,coins,locked,onBuy}){
 function Packs({db,deck,coins,locked,onCharge,onKeep}){
   const [pack,setPack]=useState(null);
   function open(r){
-    if(locked||coins<ECON.PACK_COST) return;
+    if(locked||coins<ECON.PACK_COST||deckTotal(deck)>=ECON.DECK_MAX) return;
     const cards=rollPack(db,db.pools[r],deck);
     const parts=[]; for(let i=0;i<28;i++){ const a=Math.random()*6.2832,d=110+Math.random()*320; parts.push({tx:(Math.cos(a)*d).toFixed(0),ty:(Math.sin(a)*d).toFixed(0),s:(3+Math.random()*6).toFixed(1),dl:(Math.random()*0.12).toFixed(2)}); }
     setPack({reg:r,cards,sel:null,parts});
@@ -641,9 +641,9 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
     <div style={{padding:"18px",maxWidth:"940px",margin:"0 auto"}}>
       <div className="fu">
         <div style={{fontFamily:"'Cinzel',serif",fontSize:"21px",color:C.gold,fontWeight:600,letterSpacing:".05em",marginBottom:"4px"}}>Buy Packs</div>
-        <div style={{fontSize:"18px",color:C.muted,marginBottom:"18px"}}>Open a pack for {ECON.PACK_COST} coin and keep one of the five cards. {locked?"Locked for the matchday.":""}</div>
+        <div style={{fontSize:"18px",color:C.muted,marginBottom:"18px"}}>Open a pack for {ECON.PACK_COST} coin and keep one of the five cards. {locked?"Locked for the matchday.":(deckTotal(deck)>=ECON.DECK_MAX?"Your deck is full ("+ECON.DECK_MAX+") - remove cards to open packs.":"")}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(148px,1fr))",gap:"14px"}}>
-          {REGIONS.map(r=>{ const canOpen=!locked&&coins>=ECON.PACK_COST; const rune=db.runeChamps[r]||[];
+          {REGIONS.map(r=>{ const canOpen=!locked&&coins>=ECON.PACK_COST&&deckTotal(deck)<ECON.DECK_MAX; const rune=db.runeChamps[r]||[];
             return (
               <div key={r} onClick={canOpen?()=>open(r):undefined} className={canOpen?"btn packcard":""} style={{cursor:canOpen?"pointer":"not-allowed",opacity:canOpen?1:.45,borderRadius:"14px",overflow:"hidden",position:"relative",background:"linear-gradient(165deg,"+REGCOL[r]+"3a,#0a0c14 60%)",border:"1px solid "+REGCOL[r]+"77",boxShadow:"inset 0 0 34px "+REGCOL[r]+"22",padding:"18px 12px 14px",display:"flex",flexDirection:"column",alignItems:"center",gap:"10px",minHeight:"196px"}}>
                 <div className="shine" style={{position:"absolute",top:0,left:"-45%",width:"45%",height:"100%",background:"linear-gradient(90deg,transparent,#ffffff20,transparent)",transform:"skewX(-20deg)",pointerEvents:"none"}}/>
@@ -672,7 +672,7 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
                     <div style={{borderRadius:"11px",overflow:"hidden",border:"2px solid "+(on?C.gold:block?"#a44a4a55":rc+"aa"),opacity:block?0.4:1,"--gc":(on?C.gold:rc)+(rare?"cc":"66"),boxShadow:on?"0 0 30px #c8a96e":(rare?"0 0 20px "+rc+"99":"none"),animation:(rare&&!block)?("glowpulse 1.7s ease "+(1.1+i*0.15).toFixed(2)+"s infinite"):"none"}}>
                       <img src={cImg(c)} alt={cName(c)} style={{width:"100%",display:"block"}} onError={e=>{e.target.style.opacity=0;}}/>
                     </div>
-                    <div style={{fontSize:"15px",textAlign:"center",marginTop:"4px",color:block?"#e07a7a":"#bcb296"}}>{block?block:(cCoin(c)+" coins")}</div>
+                    {block && <div style={{fontSize:"15px",textAlign:"center",marginTop:"4px",color:"#e07a7a"}}>{block}</div>}
                   </div>
                 </div>
               ); })}
