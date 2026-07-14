@@ -119,7 +119,8 @@ const SEED = {
   pending: {},
   season: 1,
   week: 1,
-  prepEnded: false,     // false = Prep Time (players can edit), true = locked for matchday
+  prepEnded: false,     // kept in sync: false = deck building, true = locked/matchday
+  seasonPhase: "building",  // "building" | "locked" | "matchday"
   champion: null,
   tournament: { phase:"idle" },
 };
@@ -168,7 +169,7 @@ function Loading(){
 /* ============================================================
    LOGIN / REGISTER
    ============================================================ */
-function Login({data,onLogin,onSpectator,onRegister}){
+function Login({data,onLogin,onSpectator,onRegister,onRequestReset}){
   const [mode,setMode]=useState("login");
   const [name,setName]=useState("");
   const [pw,setPw]=useState("");
@@ -176,6 +177,7 @@ function Login({data,onLogin,onSpectator,onRegister}){
   const [disc,setDisc]=useState("");
   const [err,setErr]=useState("");
   const [done,setDone]=useState(false);
+  const [sent,setSent]=useState(false);
 
   function doLogin(){
     const n=name.trim();
@@ -197,6 +199,7 @@ function Login({data,onLogin,onSpectator,onRegister}){
     onRegister(n,pw,riot.trim(),disc.trim());
     onLogin(n);
   }
+  function doForgot(){ const n=name.trim(); if(!n){setErr("Enter your username.");return;} if(!data.users||!data.users[n]){setErr("No account with that username.");return;} onRequestReset(n); setSent(true); setErr(""); }
 
   return (
     <div style={wrap}>
@@ -207,7 +210,7 @@ function Login({data,onLogin,onSpectator,onRegister}){
           <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:C.muted,letterSpacing:".3em"}}>POWERED BY STORYTELLER</span>
           <span style={{height:"1px",width:"56px",background:"linear-gradient(90deg,#c8a96e99,transparent)"}}/>
         </div>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#948a74",letterSpacing:".25em",marginTop:"7px"}}>v. 1.0.0</div>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#948a74",letterSpacing:".25em",marginTop:"7px"}}>v. 0.1.0</div>
       </div>
       <div className="fu" style={{width:"100%",maxWidth:"400px",display:"flex",flexDirection:"column",gap:"13px"}}>
         {mode==="login" ? (
@@ -222,7 +225,23 @@ function Login({data,onLogin,onSpectator,onRegister}){
             <div style={{padding:"13px",background:"#c8a96e08",border:"1px solid #c8a96e15",borderRadius:"10px",textAlign:"center"}}>
               <div style={{fontSize:"17px",color:C.muted,marginBottom:"9px"}}>Enter <strong style={{color:"#a8a8a8"}}>Spectator</strong> as the username to watch (no password).</div>
               <button className="btn" onClick={()=>{setMode("register");setErr("");}} style={{padding:"5px 14px",background:"transparent",border:"1px solid #c8a96e33",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Register new account →</button>
+              <div><button className="btn" onClick={()=>{setMode("forgot");setErr("");setSent(false);}} style={{marginTop:"9px",padding:"3px 10px",background:"transparent",border:"none",color:"#7a94b0",fontFamily:"'Cinzel',serif",fontSize:"15px",textDecoration:"underline",cursor:"pointer"}}>Forgot password?</button></div>
             </div>
+          </React.Fragment>
+        ) : mode==="forgot" ? (
+          <React.Fragment>
+            <div style={sCard}>
+              <div style={{...sLbl,marginBottom:"10px"}}>Forgot password</div>
+              {sent
+                ? <div style={{fontSize:"17px",color:"#6ac68a",lineHeight:1.6,fontFamily:"'Cinzel',serif",textAlign:"center",padding:"8px 0"}}>Request sent. An admin will reset your password and send you a new one.</div>
+                : <React.Fragment>
+                    <div style={{fontSize:"17px",color:C.muted,marginBottom:"12px",lineHeight:1.6}}>Enter your username. An admin will be notified and will reset your password for you.</div>
+                    <input value={name} onChange={e=>setName(e.target.value)} placeholder="Username" style={sInp} onKeyDown={e=>e.key==="Enter"&&doForgot()}/>
+                  </React.Fragment>}
+            </div>
+            {err && <div style={{color:"#cc4444",fontSize:"18px",textAlign:"center",fontFamily:"'Cinzel',serif"}}>{err}</div>}
+            {!sent && <button className="btn" onClick={doForgot} style={{padding:"14px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"10px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"20px",fontWeight:900,letterSpacing:".06em"}}>Request password reset</button>}
+            <button className="btn" onClick={()=>{setMode("login");setErr("");setSent(false);}} style={{padding:"10px",background:"transparent",border:"1px solid #333",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"17px"}}>← Back</button>
           </React.Fragment>
         ) : (
           <React.Fragment>
@@ -256,7 +275,7 @@ function TopBar({me,role,coins,onLogout,changePw}){
       <div>
         <div style={{display:"flex",alignItems:"baseline",gap:"8px"}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:"25px",fontWeight:900,letterSpacing:".14em",background:"linear-gradient(180deg,#f2dca0,#c8a96e 58%,#96703c)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>APHRODITE'S TALES</div>
-          <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#9e9478"}}>v. 1.0.0</span>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#9e9478"}}>v. 0.1.0</span>
         </div>
         <div style={{fontSize:"17px",color:C.muted,marginTop:"2px"}}>{me}{role==="admin"?" · Admin":role==="mod"?" · Mod":""}</div>
       </div>
@@ -307,19 +326,22 @@ function AdminHome({data,mutate,me}){
   const [msg,setMsg]=useState("");
   const [delArm,setDelArm]=useState("");
   const [resetArm,setResetArm]=useState(false);
+  const [seasonArm,setSeasonArm]=useState(false);
   const [shownPw,setShownPw]=useState(null);
   const pending=Object.keys(data.pending||{});
   const isFullAdmin=!!(data.users[me]&&data.users[me].role==="admin");
+  const seasonPhase=data.seasonPhase||(data.prepEnded?"locked":"building");
   const players=Object.keys(data.users||{}).filter(n=>data.users[n].role==="player"||data.users[n].role==="mod");
 
-  function togglePrep(){ mutate(d=>{ d.prepEnded=!d.prepEnded; return d; }); }
-  function newWeek(){ mutate(d=>{ d.week=(d.week||1)+1; d.prepEnded=false; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player") us[n].coins=(us[n].coins||0)+100; }); return d; }); setMsg("New week started. +100 coins to all players."); }
+  function setPhase(p){ mutate(d=>{ d.seasonPhase=p; d.prepEnded=(p!=="building"); return d; }); }
+  function newWeek(){ mutate(d=>{ d.week=(d.week||1)+1; d.prepEnded=false; d.seasonPhase="building"; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player") us[n].coins=(us[n].coins||0)+100; }); return d; }); setMsg("New week started. +100 coins to all players."); }
   function delPlayer(n){ mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
-  function resetAll(){ mutate(d=>{ const keep={}; Object.keys(d.users||{}).forEach(n=>{ if(d.users[n].role==="admin"||d.users[n].role==="mod") keep[n]=d.users[n]; }); d.users=keep; d.pending={}; d.week=1; d.season=1; d.prepEnded=false; d.champion=null; d.tournament={started:false}; return d; }); setResetArm(false); setMsg("All test accounts cleared."); }
+  function resetAll(){ mutate(d=>{ const keep={}; Object.keys(d.users||{}).forEach(n=>{ if(d.users[n].role==="admin"||d.users[n].role==="mod") keep[n]=d.users[n]; }); d.users=keep; d.pending={}; d.week=1; d.season=1; d.prepEnded=false; d.seasonPhase="building"; d.champion=null; d.tournament={started:false}; return d; }); setResetArm(false); setMsg("All test accounts cleared."); }
+  function resetSeason(){ mutate(d=>{ const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"){ us[n].starter=null; us[n].deck=null; us[n].coins=100; us[n].aphro=0; } }); d.season=(d.season||1)+1; d.week=1; d.prepEnded=false; d.seasonPhase="building"; d.tournament={phase:"idle"}; return d; }); setSeasonArm(false); setMsg("Season reset. All players are back to starter deck choice."); }
   function makeTests(){ mutate(d=>{ if(!d.users)d.users={}; for(let i=1;i<=8;i++){ d.users["Test"+i]=freshTest(); } d.testSeeded=true; return d; }); setMsg("8 test accounts ready (Test1-Test8, no password)."); }
   function grant(n,amt){ mutate(d=>{ if(d.users[n]) d.users[n].coins=Math.max(0,(d.users[n].coins||0)+amt); return d; }); }
   function apGrant(n,amt){ mutate(d=>{ if(d.users[n]) d.users[n].aphro=Math.max(0,(d.users[n].aphro||0)+amt); return d; }); }
-  function resetPw(n){ const ch="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"; let np=""; for(let i=0;i<10;i++) np+=ch[Math.floor(Math.random()*ch.length)]; mutate(d=>{ if(d.users[n]) d.users[n].password=np; return d; }); setShownPw({n:n,pw:np}); }
+  function resetPw(n){ const ch="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"; let np=""; for(let i=0;i<10;i++) np+=ch[Math.floor(Math.random()*ch.length)]; mutate(d=>{ if(d.users[n]) d.users[n].password=np; if(d.pwRequests) delete d.pwRequests[n]; return d; }); setShownPw({n:n,pw:np}); }
 
   const tab=(t,label)=>(
     <button key={t} className="btn" onClick={()=>{setAtab(t);setMsg("");setDelArm("");setResetArm(false);}}
@@ -336,17 +358,36 @@ function AdminHome({data,mutate,me}){
         <React.Fragment>
           <div style={sCard}>
             <div style={{...sLbl,marginBottom:"6px"}}>Season {data.season||1} · Week {data.week||1}</div>
-            <div style={{fontSize:"17px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>{data.prepEnded ? "Decks are LOCKED for the matchday. Players cannot edit until you start the next week." : "Prep Time is OPEN. Players can buy, open packs, and remove cards."}</div>
-            <div style={{display:"flex",gap:"8px",flexWrap:"wrap"}}>
-              <button className="btn" onClick={togglePrep} style={{flex:1,minWidth:"150px",padding:"9px",background:data.prepEnded?"#1a1400":"#0d1a2a",border:"1px solid "+(data.prepEnded?"#c8a96e55":"#334466"),borderRadius:"8px",color:data.prepEnded?C.gold:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>{data.prepEnded?"Reopen Prep Time":"End Prep Time"}</button>
-              <button className="btn" onClick={newWeek} style={{flex:1,minWidth:"150px",padding:"9px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Start next week (+100 all)</button>
+            <div style={{fontSize:"17px",color:C.muted,marginBottom:"12px",lineHeight:1.6}}>Current phase: <strong style={{color:C.gold}}>{seasonPhase==="building"?"Deck building":seasonPhase==="locked"?"Deck lock":"Matchday"}</strong>. {seasonPhase==="building"?"Players build decks (buy, packs, remove) and cannot see other players' decks yet.":seasonPhase==="locked"?"Decks are locked. Players can now view everyone's decks and wait for the tournament.":"Players play with their locked decks and can view all decks. No editing until you reopen deck building."}</div>
+            <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"8px"}}>
+              {seasonPhase==="building" && <button className="btn" onClick={()=>setPhase("locked")} style={{flex:1,minWidth:"150px",padding:"9px",background:"#1a1400",border:"1px solid #c8a96e55",borderRadius:"8px",color:C.gold,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Lock decks (start Deck lock)</button>}
+              {seasonPhase==="locked" && <React.Fragment>
+                <button className="btn" onClick={()=>setPhase("matchday")} style={{flex:1,minWidth:"140px",padding:"9px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Start matchday</button>
+                <button className="btn" onClick={()=>setPhase("building")} style={{flex:1,minWidth:"140px",padding:"9px",background:"#0d1a2a",border:"1px solid #334466",borderRadius:"8px",color:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Back to deck building</button>
+              </React.Fragment>}
+              {seasonPhase==="matchday" && <button className="btn" onClick={()=>setPhase("building")} style={{flex:1,minWidth:"150px",padding:"9px",background:"#0d1a2a",border:"1px solid #334466",borderRadius:"8px",color:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Reopen deck building</button>}
             </div>
+            <button className="btn" onClick={newWeek} style={{width:"100%",padding:"9px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Start next week (+100 all)</button>
+            {isFullAdmin && <button className="btn" onClick={()=>seasonArm?resetSeason():setSeasonArm(true)} style={{width:"100%",marginTop:"10px",padding:"9px",background:seasonArm?"#3a1010":"transparent",border:"1px solid "+(seasonArm?"#a33":"#5a2a2a"),borderRadius:"8px",color:seasonArm?"#f88":"#a66",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>{seasonArm?"Confirm: reset season - clears every deck, back to starter choice":"Reset season (all players re-pick a starter deck)"}</button>}
           </div>
         </React.Fragment>
       )}
 
       {atab==="players" && (
         <React.Fragment>
+          {Object.keys(data.pwRequests||{}).length>0 && <div style={{...sCard,borderColor:"#5a4a1a"}}>
+            <div style={{...sLbl,marginBottom:"8px",color:"#e0b040"}}>Password reset requests ({Object.keys(data.pwRequests).length})</div>
+            {Object.keys(data.pwRequests).map(rn=>(
+              <div key={rn} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",padding:"8px 0",borderBottom:"1px solid #c8a96e10",flexWrap:"wrap"}}>
+                <div style={{fontSize:"17px",color:C.text}}>{rn}{data.users[rn]&&data.users[rn].discordId?<span style={{color:C.muted,fontSize:"15px"}}> · {data.users[rn].discordId}</span>:null}</div>
+                <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
+                  <button className="btn" onClick={()=>resetPw(rn)} style={{padding:"6px 12px",background:"#c8a96e18",border:"1px solid #c8a96e55",borderRadius:"6px",color:C.gold,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>reset pw</button>
+                  <button className="btn" onClick={()=>mutate(d=>{if(d.pwRequests)delete d.pwRequests[rn];return d;})} style={{padding:"6px 10px",background:"transparent",border:"1px solid #333",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px"}}>dismiss</button>
+                </div>
+              </div>
+            ))}
+            {shownPw&&data.pwRequests[shownPw.n]===undefined&&Object.keys(data.pwRequests).indexOf(shownPw.n)<0&&<div style={{marginTop:"8px",fontSize:"15px",color:"#9cf"}}>New password for {shownPw.n}: <strong style={{fontFamily:"monospace",fontSize:"18px",color:"#cef"}}>{shownPw.pw}</strong> (send it to them)</div>}
+          </div>}
           <div style={sCard}>
             <div style={{...sLbl,marginBottom:"10px"}}>Accounts ({players.length})</div>
             {players.length===0 && <div style={{fontSize:"18px",color:C.muted}}>No players yet.</div>}
@@ -401,6 +442,8 @@ function PlayerHome({data,me,db,starters,mutate}){
   const u=data.users[me]||{};
   const deck=u.deck||[];
   const locked=!!data.prepEnded;
+  const canViewOthers=!!data.prepEnded;
+  const seasonPhase=data.seasonPhase||(data.prepEnded?"locked":"building");
   const coins=u.coins||0;
   const [tab,setTab]=useState("deck");
 
@@ -418,12 +461,27 @@ function PlayerHome({data,me,db,starters,mutate}){
     <div>
       {locked && <div style={{background:"#1a1400",borderBottom:"1px solid #c8a96e33",padding:"7px",textAlign:"center",fontFamily:"'Cinzel',serif",fontSize:"16px",color:C.gold}}>Prep Time is over. Your deck is locked for the matchday.</div>}
       <div style={{display:"flex",background:"#090b12",borderBottom:"1px solid #c8a96e1a",position:"sticky",top:0,zIndex:40}}>
-        {tb("deck","My Deck")}{tb("store","Store")}{tb("packs","Buy Packs")}{tb("tourney","Tournament")}
+        {tb("deck","My Deck")}{tb("store","Store")}{tb("packs","Buy Packs")}{tb("decks","Competitors")}{tb("tourney","Tournament")}
       </div>
       {tab==="deck" && <DeckView db={db} deck={deck} locked={locked} coins={coins} onRemove={removeCards}/>}
       {tab==="store" && <Store db={db} deck={deck} coins={coins} locked={locked} onBuy={buyCard}/>}
       {tab==="packs" && <Packs db={db} deck={deck} coins={coins} locked={locked} onCharge={chargePack} onKeep={keepPack}/>}
       {tab==="tourney" && <Tournament data={data} me={me} role="player" mutate={mutate}/>}
+      {tab==="decks" && <div style={{padding:"14px 18px",maxWidth:"720px",margin:"0 auto"}} className="fu">
+        <div style={{...sCard,marginBottom:"12px"}}>
+          <div style={{...sLbl,marginBottom:"6px"}}>Other players' decks</div>
+          {canViewOthers
+            ? <div style={{fontSize:"16px",color:C.muted,lineHeight:1.5}}>Decks are locked, so everyone's current deck is visible. Tap "view deck" to open any player's deck on runeterra.ar.</div>
+            : <div style={{fontSize:"16px",color:"#e0b040",lineHeight:1.5}}>Other players' decks unlock once the deck-building phase ends (Deck lock). Right now everyone is still building.</div>}
+        </div>
+        {canViewOthers && Object.keys(data.users).filter(n=>data.users[n].role==="player"&&n!==me&&data.users[n].starter).map(n=>{ const u=data.users[n]; const url=deckUrl(u.deck);
+          return <div key={n} style={{...sCard,padding:"11px 14px",marginBottom:"8px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
+            <div style={{minWidth:0}}><div style={{fontSize:"17px",color:C.text}}>{n}</div>{u.riotId?<div style={{fontSize:"14px",color:C.muted}}>{u.riotId}</div>:null}</div>
+            {url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:"16px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>view deck ↗</a>:<span style={{fontSize:"14px",color:"#3a3a3a"}}>no deck</span>}
+          </div>;
+        })}
+        {canViewOthers && Object.keys(data.users).filter(n=>data.users[n].role==="player"&&n!==me&&data.users[n].starter).length===0 && <div style={{...sCard,textAlign:"center",color:C.muted,fontSize:"16px"}}>No other players with decks yet.</div>}
+      </div>}
     </div>
   );
 }
@@ -641,7 +699,7 @@ function DeckView({db,deck,locked,coins,onRemove}){
 }
 
 function Store({db,deck,coins,locked,onBuy}){
-  const [buyArm,setBuyArm]=useState(null);
+  const [buyModal,setBuyModal]=useState(null);
   const [q,setQ]=useState("");
   const [reg,setReg]=useState("all");
   let list=db.list;
@@ -664,12 +722,23 @@ function Store({db,deck,coins,locked,onBuy}){
           return (
             <div key={cCode(c)} style={{width:"92px"}}>
               <CardThumb card={c} w={92} badge={price} dim={!!block}/>
-              <button className="btn" disabled={!can} onClick={()=>{ if(buyArm===cCode(c)){ onBuy(cCode(c),price); setBuyArm(null); } else { setBuyArm(cCode(c)); } }} style={{width:"100%",marginTop:"3px",padding:"4px 2px",background:!can?"#0d0f18":(buyArm===cCode(c)?"#1a3a1a":"#c8a96e18"),border:"1px solid "+(!can?"#222":(buyArm===cCode(c)?"#3a6a3a":"#c8a96e55")),borderRadius:"6px",color:!can?"#666":(buyArm===cCode(c)?"#8c8":C.gold),fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{block?block:(locked?"Locked":(coins<price?("Need "+price):(buyArm===cCode(c)?"Confirm":("Buy "+price))))}</button>
+              <button className="btn" disabled={!can} onClick={()=>setBuyModal({code:cCode(c),price:price,name:cName(c)})} style={{width:"100%",marginTop:"3px",padding:"4px 2px",background:!can?"#0d0f18":"#c8a96e18",border:"1px solid "+(!can?"#222":"#c8a96e55"),borderRadius:"6px",color:!can?"#666":C.gold,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{block?block:(locked?"Locked":(coins<price?("Need "+price):("Buy "+price)))}</button>
             </div>
           ); })}
       </div>
       {shown.length===0 && <div style={{...sCard,textAlign:"center",color:C.muted,marginTop:"10px"}}>No cards found.</div>}
       {list.length>120 && <div style={{textAlign:"center",color:C.muted,fontSize:"17px",marginTop:"12px"}}>Showing first 120 · refine with search or a region.</div>}
+      {buyModal && <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9500,background:"rgba(4,6,12,.85)",display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}} onClick={()=>setBuyModal(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{...sCard,maxWidth:"380px",width:"100%",borderColor:"#c8a96e55",textAlign:"center"}}>
+          <div style={{...sLbl,marginBottom:"12px"}}>Confirm purchase</div>
+          <div style={{fontSize:"19px",color:C.text,marginBottom:"6px",lineHeight:1.5}}>Buy <strong style={{color:C.gold}}>{buyModal.name}</strong>?</div>
+          <div style={{fontSize:"17px",color:C.muted,marginBottom:"20px"}}>Cost: <strong style={{color:C.gold}}>{buyModal.price} coins</strong></div>
+          <div style={{display:"flex",gap:"10px"}}>
+            <button className="btn" onClick={()=>{ onBuy(buyModal.code,buyModal.price); setBuyModal(null); }} style={{flex:1,padding:"13px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:900}}>Yes, buy</button>
+            <button className="btn" onClick={()=>setBuyModal(null)} style={{flex:1,padding:"13px",background:"transparent",border:"1px solid #444",borderRadius:"9px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"17px"}}>No</button>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }
@@ -708,17 +777,17 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
         </div>
       </div>
       {pack && (
-        <div className={"pk-overlay"+(bestRar>=3?" pk-shake":"")} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9000,background:"radial-gradient(ellipse at 50% 42%,"+REGCOL[pack.reg]+"1f,rgba(3,4,10,.98) 60%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"22px",overflow:"hidden"}}>
+        <div className={"pk-overlay"+(bestRar>=3?" pk-shake":"")} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9000,background:"radial-gradient(ellipse at 50% 42%,"+REGCOL[pack.reg]+"1f,rgba(3,4,10,.98) 60%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",padding:"clamp(24px,5vh,60px) 16px",overflowY:"auto"}}>
           <div className="pk-ray" style={{position:"absolute",top:"42%",left:"50%",width:"230vmax",height:"230vmax",background:"repeating-conic-gradient(from 0deg,"+rayCol+"00 0deg,"+rayCol+"26 1.1deg,"+rayCol+"00 2.6deg,"+rayCol+"00 11deg)",pointerEvents:"none"}}/>
           <div className="pk-orb" style={{position:"absolute",top:"42%",left:"50%",width:"130px",height:"130px",borderRadius:"50%",background:"radial-gradient(circle,#ffffff,"+rayCol+"cc 42%,transparent 72%)",boxShadow:"0 0 70px "+rayCol,pointerEvents:"none"}}/>
           <div className="pk-flash" style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"radial-gradient(circle at 50% 42%,#ffffff,"+rayCol+"aa 26%,transparent 58%)",pointerEvents:"none"}}/>
           {pack.parts.map((p,i)=><div key={i} className="pk-particle" style={{position:"absolute",top:"42%",left:"50%",width:p.s+"px",height:p.s+"px",borderRadius:"50%",background:rayCol,boxShadow:"0 0 9px "+rayCol,"--tx":p.tx+"px","--ty":p.ty+"px",animationDelay:(1.3+parseFloat(p.dl)).toFixed(2)+"s",pointerEvents:"none"}}/>)}
           {bestRar>=3 && <div className="pk-banner" style={{position:"relative",fontFamily:"'Cinzel',serif",color:"#ffd76a",fontSize:"clamp(22px,5.5vw,36px)",fontWeight:900,letterSpacing:".14em",marginBottom:"10px",textShadow:"0 0 32px #ffcc44",animationDelay:"1.4s"}}>CHAMPION PULL</div>}
           <div style={{position:"relative",fontFamily:"'Cinzel',serif",color:REGCOL[pack.reg],fontSize:"21px",fontWeight:600,letterSpacing:".05em",marginBottom:"18px"}}>{pack.reg}</div>
-          <div style={{display:"flex",gap:"12px",flexWrap:"wrap",justifyContent:"center",maxWidth:"880px",position:"relative"}}>
+          <div style={{display:"flex",gap:"8px",flexWrap:"wrap",justifyContent:"center",maxWidth:"1040px",position:"relative"}}>
             {pack.cards.map((code,i)=>{ const c=db.by[code]; if(!c)return null; const block=deckRuleBlock(db,deck,code); const on=pack.sel===code; const rc=RARCOL[cRar(c)]; const rare=cRar(c)>=2;
               return (
-                <div key={i} className="pk-card" style={{animationDelay:(1.3+i*0.13).toFixed(2)+"s",width:"142px"}}>
+                <div key={i} className="pk-card" style={{animationDelay:(1.3+i*0.13).toFixed(2)+"s",width:"100px"}}>
                   <div onClick={()=>tap(code)} className={block?"":"btn"} style={{cursor:block?"not-allowed":"pointer",transform:on?"translateY(-12px)":"none",transition:"transform .18s"}}>
                     <div style={{borderRadius:"11px",overflow:"hidden",border:"2px solid "+(on?C.gold:block?"#a44a4a55":rc+"aa"),opacity:block?0.4:1,"--gc":(on?C.gold:rc)+(rare?"cc":"66"),boxShadow:on?"0 0 30px #c8a96e":(rare?"0 0 20px "+rc+"99":"none"),animation:(rare&&!block)?("glowpulse 1.7s ease "+(1.1+i*0.15).toFixed(2)+"s infinite"):"none"}}>
                       <img src={cImg(c)} alt={cName(c)} style={{width:"100%",display:"block"}} onError={e=>{e.target.style.opacity=0;}}/>
@@ -787,6 +856,16 @@ function triRecompute(tri){
 function triW(tri,k){ return tri[k]&&tri[k].confirmed?tri[k].winner:null; }
 function triL(tri,k){ return triRes(tri[k],"l"); }
 function triPlacements(tri){ return {1:triW(tri,"A1"),2:triW(tri,"D1"),3:triW(tri,"C1"),4:triW(tri,"B1")}; }
+function archiveTournament(d){
+  const tt=d.tournament; if(!tt||tt.archived) return;
+  if(!d.history) d.history=[];
+  const rc=computeRecords(tt.players||[],tt.rounds||[]);
+  const ord=standing(tt.players||[],rc,tt.rounds||[]);
+  const snap={ date:Date.now(), name:tt.name||"", server:tt.server||"", champion:tt.champion||null, placements:tt.placements||{}, standings: ord.map(function(u){ const uu=(d.users&&d.users[u])||{}; return {name:u, riotId:uu.riotId||"", w:rc[u].w, l:rc[u].l, deck:(uu.deck&&uu.deck.length)?encodeDeck(uu.deck):"" }; }) };
+  d.history.unshift(snap);
+  if(d.history.length>30) d.history=d.history.slice(0,30);
+  tt.archived=true;
+}
 const F2ID={DE:0,FR:1,IO:2,NX:3,PZ:4,SI:5,BW:6,SH:7,MT:9,BC:10,RU:12};
 const FAC_MINVER={DE:1,FR:1,IO:1,NX:1,PZ:1,SI:1,BW:2,MT:2,SH:3,BC:4,RU:5};
 const B32A="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -840,31 +919,74 @@ function Tournament({data,me,role,mutate}){
   const ci=Object.keys(t.checkin||{});
 
   const [nowTs,setNowTs]=useState(Date.now());
+  const [view,setView]=useState("current");
+  const [histSel,setHistSel]=useState(null);
   useEffect(()=>{ const id=setInterval(()=>setNowTs(Date.now()),30000); return ()=>clearInterval(id); },[]);
   function openTournament(){ mutate(d=>{ d.tournament={phase:"signup",name:"",server:"EMEA",startTime:Date.now()+2*3600000,signups:{},checkin:{}}; return d; }); }
   function setStart(ts){ mutate(d=>{ d.tournament.startTime=ts; return d; }); }
   function setServer(sv){ mutate(d=>{ d.tournament.server=sv; return d; }); }
   function setName(nm){ mutate(d=>{ d.tournament.name=nm; return d; }); }
-  function signUp(riot,disc){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups)tt.signups={}; tt.signups[me]={riotId:riot,discordId:disc}; if(d.users[me]){ d.users[me].riotId=riot; d.users[me].discordId=disc; } return d; }); }
+  const [signupErr,setSignupErr]=useState("");
+  function signUp(riot,disc){ const su=(data.tournament&&data.tournament.signups)||{}; const dup=Object.keys(su).some(function(u){ return u!==me && (su[u].riotId===riot || su[u].discordId===disc); }); if(dup){ setSignupErr("An account with this Riot ID or Discord ID is already signed up for this tournament. Log out and use that account (or check in with it)."); return; } setSignupErr(""); mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups)tt.signups={}; tt.signups[me]={riotId:riot,discordId:disc}; if(d.users[me]){ d.users[me].riotId=riot; d.users[me].discordId=disc; } return d; }); }
   function startSwiss(){ mutate(d=>{ const list=Object.keys(d.tournament.checkin||{}); if(list.length<2)return d; const R=swissRounds(list.length); const order=shuffle(list); const rc=computeRecords(list,[]); const m=pairRound(order,rc); d.tournament={phase:"swiss",checkin:d.tournament.checkin,players:list,round:1,totalRounds:R,rounds:[{matches:m}]}; return d; }); }
   function confirmMatch(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(!mm.report)return d; mm.winner=mm.report.winner; mm.confirmed=true; return d; }); }
-  function setWinner(ri,mi,w){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.winner=w; mm.confirmed=true; mm.report={winner:w,by:"admin"}; return d; }); }
-  function undo(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.confirmed=false; mm.winner=null; mm.report=null; return d; }); }
+  function setWinner(ri,mi,w){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.winner=w; mm.confirmed=true; return d; }); }
+  function undo(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.confirmed=false; mm.winner=null; mm.reports={}; return d; }); }
   function nextRound(){ mutate(d=>{ const tt=d.tournament; const cur=tt.rounds[tt.round-1]; if(cur.matches.some(m=>!m.confirmed))return d; if(tt.round>=tt.totalRounds)return d; const rc=computeRecords(tt.players,tt.rounds); const order=standing(tt.players,rc); const m=pairRound(order,rc); tt.rounds.push({matches:m}); tt.round++; return d; }); }
   function reset(){ mutate(d=>{ d.tournament={phase:"idle"}; return d; }); }
-  function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups||!tt.signups[me])return d; if(Date.now()<(tt.startTime-3600000))return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; return d; }); }
-  function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed||mm.report)return d; mm.report={winner,by:me}; return d; }); }
+  function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups||!tt.signups[me])return d; if(Date.now()<(tt.startTime-7200000))return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; return d; }); }
+  function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; } return d; }); }
   function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players,tt.rounds); const ord=standing(tt.players,rc); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
-  function reportTri(k,winner){ mutate(d=>{ const mm=d.tournament.tri[k]; if(mm.confirmed||mm.report)return d; mm.report={winner,by:me}; return d; }); }
-  function confirmTri(k){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(!mm.report)return d; mm.winner=mm.report.winner; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); } return d; }); }
-  function setTriWinner(k,w){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; mm.winner=w; mm.confirmed=true; mm.report={winner:w,by:"admin"}; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); } return d; }); }
+  function reportTri(k,winner){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } } return d; }); }
+  function confirmTri(k){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(!mm.report)return d; mm.winner=mm.report.winner; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } return d; }); }
+  function setTriWinner(k,w){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; mm.winner=w; mm.confirmed=true; mm.report={winner:w,by:"admin"}; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } return d; }); }
   function awardAP(){ mutate(d=>{ const pl=d.tournament.placements||{}; const pts={1:5,2:3,3:2,4:1}; [1,2,3,4].forEach(k=>{ const u=pl[k]; if(u&&d.users[u]) d.users[u].aphro=(d.users[u].aphro||0)+pts[k]; }); d.tournament.awarded=true; return d; }); }
 
   const box={...sCard,marginBottom:"12px"};
   const wrap={padding:"14px 18px",maxWidth:"720px",margin:"0 auto"};
+  const hist=data.history||[];
+  const tabBtn=(active)=>({flex:1,padding:"11px 4px",background:active?"#c8a96e18":"transparent",border:"1px solid "+(active?"#c8a96e66":"#2a2a2a"),borderRadius:"9px",color:active?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600,cursor:"pointer"});
+  const tabBar=(<div style={{display:"flex",gap:"8px",marginBottom:"16px",maxWidth:"720px",margin:"0 auto 16px"}}><button className="btn" onClick={()=>setView("current")} style={tabBtn(view==="current")}>Current</button><button className="btn" onClick={()=>{setView("history");setHistSel(null);}} style={tabBtn(view==="history")}>Past tournaments{hist.length?" ("+hist.length+")":""}</button></div>);
+  if(view==="history"){
+    const detail=(histSel!=null&&hist[histSel])?hist[histSel]:null;
+    return <div style={wrap} className="fu">{tabBar}{detail
+      ? <React.Fragment>
+          <button className="btn" onClick={()=>setHistSel(null)} style={{marginBottom:"12px",padding:"8px 14px",background:"transparent",border:"1px solid #333",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"16px"}}>← All tournaments</button>
+          <div style={{...box,textAlign:"center",background:"#1a1400",borderColor:"#c8a96e66"}}>
+            {detail.name?<div style={{fontFamily:"'Cinzel',serif",color:C.text,fontSize:"18px",marginBottom:"4px"}}>{detail.name}</div>:null}
+            <div style={{fontFamily:"'Cinzel',serif",color:"#c8a96e",fontSize:"12px",letterSpacing:".2em",marginBottom:"4px"}}>CHAMPION</div>
+            <div className="glow" style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"26px",fontWeight:900}}>{detail.champion||"-"}</div>
+            <div style={{fontSize:"14px",color:C.muted,marginTop:"6px"}}>{new Date(detail.date).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric"})}{detail.server?" · "+detail.server:""}</div>
+          </div>
+          <div style={box}>
+            <div style={{...sLbl,marginBottom:"10px"}}>Final standings · decks</div>
+            {(detail.standings||[]).map((p,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
+                <span style={{width:"22px",fontFamily:"'Cinzel',serif",color:i<4?C.gold:"#3a3a3a",fontSize:"17px",fontWeight:900}}>{i+1}</span>
+                <span style={{flex:1,fontSize:"17px",color:C.text}}>{p.name}{p.riotId?<span style={{color:C.muted,fontSize:"14px"}}> · {p.riotId}</span>:null}</span>
+                {p.deck?<a href={"https://runeterra.ar/decks/code/"+p.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}
+                <span style={{fontSize:"16px",color:C.muted,fontFamily:"'Cinzel',serif"}}>{p.w}-{p.l}</span>
+              </div>
+            ))}
+          </div>
+        </React.Fragment>
+      : <React.Fragment>
+          {hist.length===0 && <div style={{...box,textAlign:"center",color:C.muted,fontSize:"17px"}}>No past tournaments yet. Finished tournaments appear here.</div>}
+          {hist.map((h,i)=>(
+            <div key={i} className="btn" onClick={()=>setHistSel(i)} style={{...box,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",marginBottom:"8px"}}>
+              <div>
+                <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"18px"}}>{h.champion||"-"} <span style={{color:C.muted,fontSize:"14px",fontWeight:400}}>champion</span></div>
+                <div style={{fontSize:"14px",color:C.muted}}>{h.name?h.name+" · ":""}{new Date(h.date).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric"})}{h.server?" · "+h.server:""} · {(h.standings||[]).length} players</div>
+              </div>
+              <span style={{color:C.muted,fontSize:"22px"}}>›</span>
+            </div>
+          ))}
+        </React.Fragment>
+    }</div>;
+  }
 
   if(t.phase==="idle"){
-    return <div style={wrap} className="fu"><div style={{...box,textAlign:"center"}}>
+    return <div style={wrap} className="fu">{tabBar}<div style={{...box,textAlign:"center"}}>
       <div style={{...sLbl,marginBottom:"8px"}}>Tournament</div>
       <div style={{fontSize:"18px",color:C.muted,lineHeight:1.6,marginBottom:isAdmin?"14px":0}}>No tournament is running right now.</div>
       {isAdmin&&(data.prepEnded
@@ -877,12 +999,12 @@ function Tournament({data,me,role,mutate}){
     const su=t.signups||{}; const suList=Object.keys(su);
     const reg=me&&su[me]; const inCi=t.checkin&&me&&t.checkin[me];
     const isPlayer=me&&data.users[me]&&data.users[me].role==="player";
-    const ciOpen=nowTs>=(t.startTime-3600000);
+    const ciOpen=nowTs>=(t.startTime-7200000);
     const startLocal=new Date(t.startTime).toLocaleString("en-US", {weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true});
-    const ciLocal=new Date(t.startTime-3600000).toLocaleString("en-US", {hour:"numeric",minute:"2-digit",hour12:true});
+    const ciLocal=new Date(t.startTime-7200000).toLocaleString("en-US", {hour:"numeric",minute:"2-digit",hour12:true});
     const mins=Math.round((t.startTime-nowTs)/60000);
     const rel=mins>0?(mins>=60?("in "+Math.floor(mins/60)+"h "+(mins%60)+"m"):("in "+mins+"m")):"now";
-    return <div style={wrap} className="fu">
+    return <div style={wrap} className="fu">{tabBar}
       <div style={box}>
         <div style={{...sLbl,marginBottom:"6px"}}>{t.name?t.name+" · sign-ups open":"Tournament sign-ups open"}</div>
         <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:"8px"}}>
@@ -910,8 +1032,15 @@ function Tournament({data,me,role,mutate}){
       </div>}
 
       {isPlayer&&<div style={box}>
+        {signupErr && <div style={{fontSize:"16px",color:"#e07a7a",marginBottom:"12px",lineHeight:1.5,fontFamily:"'Cinzel',serif"}}>{signupErr}</div>}
         {!reg
-          ? <SignUpForm onSubmit={signUp} me={me} data={data}/>
+          ? ((data.users[me]&&data.users[me].riotId&&data.users[me].discordId)
+              ? <div>
+                  <div style={{...sLbl,marginBottom:"8px"}}>Sign up for the tournament</div>
+                  <div style={{fontSize:"17px",color:C.muted,marginBottom:"12px",lineHeight:1.6}}>You will be entered with your account's Riot ID (<strong style={{color:C.text}}>{data.users[me].riotId}</strong>) and Discord ID.</div>
+                  <button className="btn" onClick={()=>signUp(data.users[me].riotId,data.users[me].discordId)} style={{width:"100%",padding:"13px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"10px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900,letterSpacing:".04em"}}>Sign up</button>
+                </div>
+              : <SignUpForm onSubmit={signUp} me={me} data={data}/>)
           : <div>
               <div style={{...sLbl,marginBottom:"8px"}}>You are registered</div>
               <div style={{fontSize:"18px",color:C.muted,marginBottom:"12px"}}>Riot ID: <strong style={{color:C.text}}>{su[me].riotId}</strong> · Discord: <strong style={{color:C.text}}>{su[me].discordId}</strong></div>
@@ -944,7 +1073,7 @@ function Tournament({data,me,role,mutate}){
     const tri=t.tri||{};
     const nm=n=>n||"-";
     const nameCell=(k,nm)=>{ const m=tri[k]; if(!nm) return <div style={{padding:"5px 6px",borderRadius:"5px",background:"#0a0b10",border:"1px solid #1a1a1a",color:"#3a3a3a",fontSize:"16px"}}>-</div>;
-      const won=m.confirmed&&m.winner===nm; const pend=!m.confirmed&&m.report&&m.report.winner===nm; const mine=me&&(m.a===me||m.b===me); const clickable=m.a&&m.b&&!m.confirmed&&(mine||isAdmin);
+      const won=m.confirmed&&m.winner===nm; const pend=!m.confirmed&&m.reports&&((m.reports[m.a]===nm)||(m.reports[m.b]===nm)); const mine=me&&(m.a===me||m.b===me); const clickable=m.a&&m.b&&!m.confirmed&&(mine||isAdmin);
       const onClick=clickable?()=>{ if(isAdmin) setTriWinner(k,nm); else reportTri(k,nm); }:undefined;
       return <div onClick={onClick} className={clickable?"btn":""} style={{padding:"5px 7px",borderRadius:"5px",background:won?"#173217":pend?"#2a2400":"#0d0f18",border:"1px solid "+(won?"#3a6a3a":pend?"#5a4a1a":"#262626"),color:won?"#9d9":pend?"#e0b040":(nm===me?C.gold:C.text),fontSize:"16px",cursor:clickable?"pointer":"default",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontWeight:nm===me?600:400}}>{nm}</div>; };
     const matchBox=(k)=>{ const m=tri[k]; if(!m) return null; const ready=m.a&&m.b; const pos=TRI_POS[k];
@@ -952,7 +1081,7 @@ function Tournament({data,me,role,mutate}){
         <div style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:C.muted,marginBottom:"2px",letterSpacing:".08em"}}>{k}</div>
         <div style={{display:"flex",flexDirection:"column",gap:"3px",padding:"4px",background:"#090b12",border:"1px solid "+(m.confirmed?"#c8a96e30":ready?"#2f2f2f":"#171717"),borderRadius:"7px",opacity:ready?1:0.45}}>
           {nameCell(k,m.a)}{nameCell(k,m.b)}
-          {isAdmin&&ready&&!m.confirmed&&m.report&&<button className="btn" onClick={()=>confirmTri(k)} style={{padding:"3px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"4px",color:"#a8d8a8",fontSize:"15px",fontFamily:"'Cinzel',serif"}}>confirm {m.report.winner}</button>}
+          {ready&&!m.confirmed&&m.reports&&m.reports[m.a]&&m.reports[m.b]&&m.reports[m.a]!==m.reports[m.b]&&<div style={{fontSize:"12px",color:"#e07a7a",textAlign:"center",fontFamily:"'Cinzel',serif"}}>conflict</div>}
         </div>
       </div>; };
     const winBox=(k)=>{ const w=triW(tri,k); const pos=TRI_WIN[k]; const champ=k==="A1";
@@ -970,7 +1099,7 @@ function Tournament({data,me,role,mutate}){
         </div>
       </div>; };
     const pl=t.placements||{};
-    return <div style={wrap} className="fu">
+    return <div style={wrap} className="fu">{tabBar}
       <div style={{...box,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div><div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"21px",fontWeight:600}}>Triangle bracket</div><div style={{fontSize:"17px",color:C.muted}}>{t.phase==="done"?"Complete":"Top 8 from Swiss · tap a name to report"}</div></div>
         {isAdmin&&<button className="btn" onClick={reset} style={{padding:"9px 12px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"8px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Reset</button>}
@@ -997,7 +1126,7 @@ function Tournament({data,me,role,mutate}){
   const cur=rounds[t.round-1]||{matches:[]};
   const allDone=cur.matches.every(m=>m.confirmed);
   const bl={winners:"",lb1:"",lb2:"",eliminated:""};
-  return <div style={wrap} className="fu">
+  return <div style={wrap} className="fu">{tabBar}
     <div style={{...box,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div><div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"21px",fontWeight:600}}>Swiss</div><div style={{fontSize:"17px",color:C.muted}}>Round {t.round} of {t.totalRounds}</div></div>
       {isAdmin&&<div style={{display:"flex",gap:"7px"}}>
@@ -1013,22 +1142,22 @@ function Tournament({data,me,role,mutate}){
       {cur.matches.map((m,mi)=>{
         const mine=me&&(m.a===me||m.b===me);
         if(m.bye) return <div key={mi} style={{padding:"9px 0",borderBottom:"1px solid #c8a96e10",fontSize:"18px",color:C.muted}}><strong style={{color:C.text}}>{m.a}</strong> has a bye (free win)</div>;
-        const rep=m.report;
+        const ra=m.reports&&m.reports[m.a]; const rb=m.reports&&m.reports[m.b]; const conflict=ra&&rb&&ra!==rb; const myRep=(m.reports&&me)?m.reports[me]:null;
         return (
           <div key={mi} style={{padding:"10px 0",borderBottom:"1px solid #c8a96e10"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",flexWrap:"wrap"}}>
               <div style={{fontSize:"20px",color:C.text}}><strong style={{color:m.confirmed&&m.winner===m.a?"#6ac68a":C.text}}>{m.a}</strong> <span style={{color:C.muted,fontSize:"17px"}}>vs</span> <strong style={{color:m.confirmed&&m.winner===m.b?"#6ac68a":C.text}}>{m.b}</strong></div>
               {m.confirmed
-                ? <span style={{fontSize:"17px",color:"#6ac68a",fontFamily:"'Cinzel',serif"}}>{m.winner} won{isAdmin?" ":""}</span>
-                : rep? <span style={{fontSize:"16px",color:"#e0b040",fontFamily:"'Cinzel',serif"}}>pending: {rep.winner} won</span>
+                ? <span style={{fontSize:"17px",color:"#6ac68a",fontFamily:"'Cinzel',serif"}}>{m.winner} won</span>
+                : conflict? <span style={{fontSize:"16px",color:"#e07a7a",fontFamily:"'Cinzel',serif"}}>conflict - staff resolves</span>
+                : (ra||rb)? <span style={{fontSize:"16px",color:"#e0b040",fontFamily:"'Cinzel',serif"}}>reported: {ra||rb} won - waiting</span>
                 : <span style={{fontSize:"16px",color:C.muted}}>not reported</span>}
             </div>
             {mine&&!m.confirmed&&<div style={{display:"flex",gap:"7px",marginTop:"8px"}}>
-              <button className="btn" onClick={()=>report(t.round-1,mi,me)} style={{flex:1,padding:"8px",background:rep&&rep.winner===me?"#0d1a12":"#0d0f18",border:"1px solid "+(rep&&rep.winner===me?"#2a5a3a":"#333"),borderRadius:"7px",color:rep&&rep.winner===me?"#6ac68a":C.text,fontFamily:"'Cinzel',serif",fontSize:"17px"}}>I won</button>
-              <button className="btn" onClick={()=>report(t.round-1,mi,m.a===me?m.b:m.a)} style={{flex:1,padding:"8px",background:"#0d0f18",border:"1px solid #333",borderRadius:"7px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"17px"}}>I lost</button>
+              <button className="btn" onClick={()=>report(t.round-1,mi,me)} style={{flex:1,padding:"8px",background:myRep===me?"#0d1a12":"#0d0f18",border:"1px solid "+(myRep===me?"#2a5a3a":"#333"),borderRadius:"7px",color:myRep===me?"#6ac68a":C.text,fontFamily:"'Cinzel',serif",fontSize:"17px"}}>I won</button>
+              <button className="btn" onClick={()=>report(t.round-1,mi,m.a===me?m.b:m.a)} style={{flex:1,padding:"8px",background:(myRep&&myRep!==me)?"#1a1010":"#0d0f18",border:"1px solid "+((myRep&&myRep!==me)?"#5a2a2a":"#333"),borderRadius:"7px",color:(myRep&&myRep!==me)?"#e0a0a0":C.muted,fontFamily:"'Cinzel',serif",fontSize:"17px"}}>I lost</button>
             </div>}
-            {isAdmin&&!m.confirmed&&<div style={{display:"flex",gap:"6px",marginTop:"8px"}}>
-              {rep&&<button className="btn" onClick={()=>confirmMatch(t.round-1,mi)} style={{padding:"6px 12px",background:"#1a3a1a",border:"1px solid #3a6a3a",borderRadius:"6px",color:"#a8d8a8",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Confirm {rep.winner}</button>}
+            {isAdmin&&!m.confirmed&&<div style={{display:"flex",gap:"6px",marginTop:"8px",flexWrap:"wrap"}}>
               <button className="btn" onClick={()=>setWinner(t.round-1,mi,m.a)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{m.a} won</button>
               <button className="btn" onClick={()=>setWinner(t.round-1,mi,m.b)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{m.b} won</button>
             </div>}
@@ -1040,6 +1169,9 @@ function Tournament({data,me,role,mutate}){
 
     <div style={box}>
       <div style={{...sLbl,marginBottom:"10px"}}>Standings</div>
+      <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"13px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
+        <span style={{width:"20px"}}>#</span><span style={{flex:1}}>Player</span><span style={{fontSize:"12px"}}>Bh · Sk</span><span style={{minWidth:"46px",textAlign:"right"}}>W-L</span>
+      </div>
       {stand.map((n,i)=>(
         <div key={n} style={{display:"flex",alignItems:"center",gap:"10px",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
           <span style={{width:"20px",fontFamily:"'Cinzel',serif",color:i<8?C.gold:"#3a3a3a",fontSize:"18px",fontWeight:900}}>{i+1}</span>
@@ -1100,6 +1232,7 @@ function App(){
   }
   function login(n){ setMe(n); try{sessionStorage.setItem("at_me",n);}catch(e){} }
   function register(n,pw,riot,disc){ mutate(d=>{ if(!d.users)d.users={}; if(d.users[n]) return d; const np=freshPlayer(pw); np.coins=100+95*((d.week||1)-1); np.riotId=riot||""; np.discordId=disc||""; d.users[n]=np; return d; }); }
+  function requestReset(n){ mutate(d=>{ if(!d.users||!d.users[n])return d; if(!d.pwRequests)d.pwRequests={}; d.pwRequests[n]=Date.now(); return d; }); }
   function logout(){ setMe(null); setSpectator(false); try{sessionStorage.removeItem("at_me");}catch(e){} }
   function changePw(current,newPw){ const u=data.users[me]; if(!u) return "Not logged in."; if(!newPw||!newPw.trim()) return "Enter a new password."; if(!u.noPassword && u.password!==current) return "Current password is wrong."; mutate(d=>{ if(d.users[me]) d.users[me].password=newPw.trim(); return d; }); return null; }
 
@@ -1108,7 +1241,7 @@ function App(){
   if(spectator) return <Spectator data={data} onLeave={()=>setSpectator(false)}/>;
   if(!me || !(data.users && data.users[me])) {
     // not logged in (or account no longer exists) → login
-    return <Login data={data} onLogin={login} onSpectator={()=>setSpectator(true)} onRegister={register}/>;
+    return <Login data={data} onLogin={login} onSpectator={()=>setSpectator(true)} onRegister={register} onRequestReset={requestReset}/>;
   }
 
   const role=data.users[me].role;
