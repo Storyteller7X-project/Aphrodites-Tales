@@ -59,6 +59,7 @@
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -321,7 +322,7 @@ function CoinGrant({onGive}){
     <button className="btn" disabled={!n} onClick={()=>{ if(n){onGive(n);setV("");} }} style={{padding:"6px 11px",background:n?"#c8a96e18":"#0d0f18",border:"1px solid "+(n?"#c8a96e55":"#333"),borderRadius:"6px",color:n?"#c8a96e":"#555",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>give</button>
   </div>;
 }
-function AdminHome({data,mutate,me}){
+function AdminHome({data,mutate,me,db}){
   const [atab,setAtab]=useState("home");
   const [msg,setMsg]=useState("");
   const [delArm,setDelArm]=useState("");
@@ -333,11 +334,46 @@ function AdminHome({data,mutate,me}){
   const seasonPhase=data.seasonPhase||(data.prepEnded?"locked":"building");
   const players=Object.keys(data.users||{}).filter(n=>data.users[n].role==="player"||data.users[n].role==="mod");
 
-  function setPhase(p){ mutate(d=>{ d.seasonPhase=p; d.prepEnded=(p!=="building"); return d; }); }
+  function setPhase(p){ mutate(d=>{ d.seasonPhase=p; d.prepEnded=(p!=="building"); if(p==="locked"){ const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"&&us[n].deck&&us[n].deck.length){ logStat(d,"deckLocks",{a:n,wk:d.week||1,deck:encodeDeck(us[n].deck),size:deckTotal(us[n].deck),t:Date.now()}); } }); } return d; }); }
   function newWeek(){ mutate(d=>{ d.week=(d.week||1)+1; d.prepEnded=false; d.seasonPhase="building"; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player") us[n].coins=(us[n].coins||0)+100; }); return d; }); setMsg("New week started. +100 coins to all players."); }
   function delPlayer(n){ mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
   function resetAll(){ mutate(d=>{ const keep={}; Object.keys(d.users||{}).forEach(n=>{ if(d.users[n].role==="admin"||d.users[n].role==="mod") keep[n]=d.users[n]; }); d.users=keep; d.pending={}; d.week=1; d.season=1; d.prepEnded=false; d.seasonPhase="building"; d.champion=null; d.tournament={started:false}; return d; }); setResetArm(false); setMsg("All test accounts cleared."); }
   function resetSeason(){ mutate(d=>{ const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"){ us[n].starter=null; us[n].deck=null; us[n].coins=100; us[n].aphro=0; } }); d.season=(d.season||1)+1; d.week=1; d.prepEnded=false; d.seasonPhase="building"; d.tournament={phase:"idle"}; return d; }); setSeasonArm(false); setMsg("Season reset. All players are back to starter deck choice."); }
+  function exportStats(){
+    const X=window.XLSX; if(!X){ setMsg("Spreadsheet tool is still loading, try again in a moment."); return; }
+    const S=data.stats||{}; const users=data.users||{}; const hist=data.history||[];
+    const nm=code=>{ const c=(db&&db.by)?db.by[code]:null; return c?c[1]:code; };
+    const dt=x=>x?new Date(x).toLocaleString("en-US",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):"";
+    const players=Object.keys(users).filter(n=>users[n].role==="player").sort();
+    const wb=X.utils.book_new();
+    const add=(name,aoa)=>{ X.utils.book_append_sheet(wb,X.utils.aoa_to_sheet(aoa),name); };
+    const sum=[["Account","Starter","Packs opened","Cards picked","Cards skipped","Store buys","Removals bought","Cards removed","Check-ins","Best finish","Deck size","Coins","Aphrodite Points"]];
+    players.forEach(n=>{ const pk=(S.packs||[]).filter(e=>e.a===n); const buys=(S.buys||[]).filter(e=>e.a===n); const rem=(S.removals||[]).filter(e=>e.a===n); const ci=(S.checkins||[]).filter(e=>e.a===n).length; const fins=[]; hist.forEach(h=>Object.keys(h.placements||{}).forEach(pl=>{ if(h.placements[pl]===n) fins.push(parseInt(pl,10)); })); const u=users[n]; sum.push([n,u.starter||"",pk.length,pk.filter(e=>e.pick).length,pk.reduce((s,e)=>s+((e.skip||[]).length),0),buys.length,rem.length,rem.reduce((s,e)=>s+(e.n||0),0),ci,fins.length?Math.min.apply(null,fins):"",deckTotal(u.deck||[]),u.coins||0,u.aphro||0]); });
+    add("Summary",sum);
+    const po=[["Account","Week","Region","Picked","Skipped cards","Date"]];
+    (S.packs||[]).forEach(e=>po.push([e.a,e.wk,e.reg,e.pick?nm(e.pick):"(took nothing)",(e.skip||[]).map(nm).join(", "),dt(e.t)]));
+    add("Pack Opens",po);
+    const off={},pic={};
+    (S.packs||[]).forEach(e=>{ const all=(e.pick?[e.pick]:[]).concat(e.skip||[]); all.forEach(c=>off[c]=(off[c]||0)+1); if(e.pick)pic[e.pick]=(pic[e.pick]||0)+1; });
+    const pr=[["Card","Times offered","Times picked","Times skipped","Pick %"]];
+    Object.keys(off).sort((a,b)=>off[b]-off[a]).forEach(c=>{ const o=off[c],p=pic[c]||0; pr.push([nm(c),o,p,o-p,(o?Math.round(p/o*100):0)+"%"]); });
+    add("Card Pick Rate",pr);
+    const sp=[["Account","Week","Card","Price","Date"]];
+    (S.buys||[]).forEach(e=>sp.push([e.a,e.wk,nm(e.c),e.p,dt(e.t)])); add("Store Purchases",sp);
+    const cr=[["Account","Week","Cards removed","Cost","Deck size before","Date"]];
+    (S.removals||[]).forEach(e=>cr.push([e.a,e.wk,e.n,e.cost,e.before,dt(e.t)])); add("Card Removals",cr);
+    const ck=[["Account","Week","Date"]]; (S.checkins||[]).forEach(e=>ck.push([e.a,e.wk,dt(e.t)])); add("Check-ins",ck);
+    const wc={}; (S.checkins||[]).forEach(e=>wc[e.wk]=(wc[e.wk]||0)+1);
+    const cw=[["Week","Check-ins"]]; Object.keys(wc).sort((a,b)=>Number(a)-Number(b)).forEach(w=>cw.push([Number(w),wc[w]])); add("Check-ins by Week",cw);
+    const st=[["Account","Starter deck","Week","Date"]]; (S.starters||[]).forEach(e=>st.push([e.a,e.s,e.wk,dt(e.t)])); add("Starter Picks",st);
+    const fi=[["Tournament","Date","Server","Champion","1st","2nd","3rd","4th"]];
+    hist.forEach(h=>{ const p=h.placements||{}; fi.push([h.name||"",dt(h.date),h.server||"",h.champion||"",p[1]||"",p[2]||"",p[3]||"",p[4]||""]); }); add("Finishes",fi);
+    const fa=[["Account","Tournament","Date","Placement"]];
+    hist.forEach(h=>Object.keys(h.placements||{}).forEach(pl=>fa.push([h.placements[pl],h.name||"",dt(h.date),Number(pl)]))); add("Finishes by Account",fa);
+    const dh=[["Account","Week","Deck size","Deck code","Link","Date"]];
+    (S.deckLocks||[]).forEach(e=>dh.push([e.a,e.wk,e.size,e.deck,"https://runeterra.ar/decks/code/"+e.deck,dt(e.t)])); add("Deck History",dh);
+    X.writeFile(wb,"aphrodites-tales-stats-"+new Date().toISOString().slice(0,10)+".xlsx");
+  }
   function makeTests(){ mutate(d=>{ if(!d.users)d.users={}; for(let i=1;i<=8;i++){ d.users["Test"+i]=freshTest(); } d.testSeeded=true; return d; }); setMsg("8 test accounts ready (Test1-Test8, no password)."); }
   function grant(n,amt){ mutate(d=>{ if(d.users[n]) d.users[n].coins=Math.max(0,(d.users[n].coins||0)+amt); return d; }); }
   function apGrant(n,amt){ mutate(d=>{ if(d.users[n]) d.users[n].aphro=Math.max(0,(d.users[n].aphro||0)+amt); return d; }); }
@@ -369,6 +405,11 @@ function AdminHome({data,mutate,me}){
             </div>
             <button className="btn" onClick={newWeek} style={{width:"100%",padding:"9px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Start next week (+100 all)</button>
             {isFullAdmin && <button className="btn" onClick={()=>seasonArm?resetSeason():setSeasonArm(true)} style={{width:"100%",marginTop:"10px",padding:"9px",background:seasonArm?"#3a1010":"transparent",border:"1px solid "+(seasonArm?"#a33":"#5a2a2a"),borderRadius:"8px",color:seasonArm?"#f88":"#a66",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>{seasonArm?"Confirm: reset season - clears every deck, back to starter choice":"Reset season (all players re-pick a starter deck)"}</button>}
+          </div>
+          <div style={sCard}>
+            <div style={{...sLbl,marginBottom:"8px"}}>Statistics</div>
+            <div style={{fontSize:"15px",color:C.muted,marginBottom:"10px",lineHeight:1.5}}>Download a full spreadsheet: pack opens with picks/skips, card pick rates, store purchases, card removals, check-ins, starter picks, finishes and deck history per week.</div>
+            <button className="btn" onClick={exportStats} style={{width:"100%",padding:"11px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Export statistics (.xlsx)</button>
           </div>
         </React.Fragment>
       )}
@@ -447,11 +488,12 @@ function PlayerHome({data,me,db,starters,mutate}){
   const coins=u.coins||0;
   const [tab,setTab]=useState("deck");
 
-  function pickStarter(name,deckArr){ mutate(d=>{ d.users[me].starter=name; d.users[me].deck=deckArr; return d; }); }
-  function buyCard(code,price){ mutate(d=>{ const uu=d.users[me]; if(!!d.prepEnded||(uu.coins||0)<price||deckRuleBlock(db,uu.deck||[],code)) return d; uu.coins=(uu.coins||0)-price; uu.deck=addToDeck(uu.deck||[],code); return d; }); }
-  function removeCards(sel,cost){ mutate(d=>{ const uu=d.users[me]; if(!!d.prepEnded||(uu.coins||0)<cost) return d; let dk=(uu.deck||[]).map(e=>({...e})); Object.keys(sel).forEach(code=>{ const e=dk.find(x=>x.code===code); if(e) e.count-=sel[code]; }); uu.deck=dk.filter(e=>e.count>0); uu.coins=(uu.coins||0)-cost; return d; }); }
+  function pickStarter(name,deckArr){ mutate(d=>{ d.users[me].starter=name; d.users[me].deck=deckArr; logStat(d,"starters",{a:me,s:name,wk:d.week||1,t:Date.now()}); return d; }); }
+  function buyCard(code,price){ mutate(d=>{ const uu=d.users[me]; if(!!d.prepEnded||(uu.coins||0)<price||deckRuleBlock(db,uu.deck||[],code)) return d; uu.coins=(uu.coins||0)-price; uu.deck=addToDeck(uu.deck||[],code); logStat(d,"buys",{a:me,wk:d.week||1,c:code,p:price,t:Date.now()}); return d; }); }
+  function removeCards(sel,cost){ mutate(d=>{ const uu=d.users[me]; if(!!d.prepEnded||(uu.coins||0)<cost) return d; const before=deckTotal(uu.deck||[]); let cnt=0; Object.keys(sel).forEach(code=>cnt+=sel[code]); let dk=(uu.deck||[]).map(e=>({...e})); Object.keys(sel).forEach(code=>{ const e=dk.find(x=>x.code===code); if(e) e.count-=sel[code]; }); uu.deck=dk.filter(e=>e.count>0); uu.coins=(uu.coins||0)-cost; logStat(d,"removals",{a:me,wk:d.week||1,n:cnt,cost:cost,before:before,t:Date.now()}); return d; }); }
   function chargePack(){ mutate(d=>{ const uu=d.users[me]; if(!!d.prepEnded||(uu.coins||0)<ECON.PACK_COST) return d; uu.coins=(uu.coins||0)-ECON.PACK_COST; return d; }); }
-  function keepPack(code){ mutate(d=>{ const uu=d.users[me]; if(deckRuleBlock(db,uu.deck||[],code)) return d; uu.deck=addToDeck(uu.deck||[],code); return d; }); }
+  function keepPack(code,reg,cards){ mutate(d=>{ const uu=d.users[me]; if(deckRuleBlock(db,uu.deck||[],code)) return d; uu.deck=addToDeck(uu.deck||[],code); logStat(d,"packs",{a:me,wk:d.week||1,reg:reg||"",pick:code,skip:(cards||[]).filter(c=>c!==code),t:Date.now()}); return d; }); }
+  function skipPack(reg,cards){ mutate(d=>{ logStat(d,"packs",{a:me,wk:d.week||1,reg:reg||"",pick:null,skip:cards||[],t:Date.now()}); return d; }); }
 
   if(!u.starter || !deck.length) return <StarterSelect starters={starters} db={db} onPick={pickStarter}/>;
 
@@ -465,7 +507,7 @@ function PlayerHome({data,me,db,starters,mutate}){
       </div>
       {tab==="deck" && <DeckView db={db} deck={deck} locked={locked} coins={coins} onRemove={removeCards}/>}
       {tab==="store" && <Store db={db} deck={deck} coins={coins} locked={locked} onBuy={buyCard}/>}
-      {tab==="packs" && <Packs db={db} deck={deck} coins={coins} locked={locked} onCharge={chargePack} onKeep={keepPack}/>}
+      {tab==="packs" && <Packs db={db} deck={deck} coins={coins} locked={locked} onCharge={chargePack} onKeep={keepPack} onSkip={skipPack}/>}
       {tab==="tourney" && <Tournament data={data} me={me} role="player" mutate={mutate}/>}
       {tab==="decks" && <div style={{padding:"14px 18px",maxWidth:"720px",margin:"0 auto"}} className="fu">
         <div style={{...sCard,marginBottom:"12px"}}>
@@ -556,6 +598,7 @@ const cCode=c=>c[0], cName=c=>c[1], cMana=c=>c[2], cRar=c=>c[3], cChamp=c=>c[4]=
 function coinOf(db,code){ const c=db.by[code]; return c?cCoin(c):20; }
 function isChampCode(db,code){ const c=db.by[code]; return !!c&&cChamp(c); }
 function deckTotal(deck){ return (deck||[]).reduce((s,e)=>s+(e.count||0),0); }
+function logStat(d,cat,entry){ if(!d.stats)d.stats={}; if(!d.stats[cat])d.stats[cat]=[]; d.stats[cat].push(entry); if(d.stats[cat].length>5000) d.stats[cat]=d.stats[cat].slice(-5000); }
 function uniqueChamps(db,deck){ return (deck||[]).filter(e=>isChampCode(db,e.code)).length; }
 function copiesOf(deck,code){ const e=(deck||[]).find(x=>x.code===code); return e?e.count:0; }
 function addToDeck(deck,code){ const d=(deck||[]).map(e=>({...e})); const e=d.find(x=>x.code===code); if(e)e.count++; else d.push({code,count:1}); return d; }
@@ -743,7 +786,7 @@ function Store({db,deck,coins,locked,onBuy}){
   );
 }
 
-function Packs({db,deck,coins,locked,onCharge,onKeep}){
+function Packs({db,deck,coins,locked,onCharge,onKeep,onSkip}){
   const [pack,setPack]=useState(null);
   function open(r){
     if(locked||coins<ECON.PACK_COST||deckTotal(deck)>=ECON.DECK_MAX) return;
@@ -754,7 +797,7 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
     packSfx(cards.map(code=>{const c=db.by[code];return c?cRar(c):0;}));
   }
   function tap(code){ if(deckRuleBlock(db,deck,code)) return; setPack(p=>({...p,sel:p.sel===code?null:code})); }
-  function done(){ if(pack&&pack.sel) onKeep(pack.sel); setPack(null); }
+  function done(){ if(pack){ if(pack.sel) onKeep(pack.sel,pack.reg,pack.cards); else onSkip(pack.reg,pack.cards); } setPack(null); }
   const bestRar=pack?Math.max.apply(null,pack.cards.map(code=>{const c=db.by[code];return c?cRar(c):0;})):0;
   const rayCol=bestRar>=3?"#ffcc44":(pack?REGCOL[pack.reg]:"#c8a96e");
   return (
@@ -777,27 +820,27 @@ function Packs({db,deck,coins,locked,onCharge,onKeep}){
         </div>
       </div>
       {pack && (
-        <div className={"pk-overlay"+(bestRar>=3?" pk-shake":"")} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9000,background:"radial-gradient(ellipse at 50% 42%,"+REGCOL[pack.reg]+"1f,rgba(3,4,10,.98) 60%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",padding:"clamp(24px,5vh,60px) 16px",overflowY:"auto"}}>
+        <div className={"pk-overlay"+(bestRar>=3?" pk-shake":"")} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9000,background:"radial-gradient(ellipse at 50% 42%,"+REGCOL[pack.reg]+"1f,rgba(3,4,10,.98) 60%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"16px 12px",overflowY:"auto","--pkw":"min(90px, (100vw - 60px) / 7, (100vh - 268px) / 3.06)"}}>
           <div className="pk-ray" style={{position:"absolute",top:"42%",left:"50%",width:"230vmax",height:"230vmax",background:"repeating-conic-gradient(from 0deg,"+rayCol+"00 0deg,"+rayCol+"26 1.1deg,"+rayCol+"00 2.6deg,"+rayCol+"00 11deg)",pointerEvents:"none"}}/>
           <div className="pk-orb" style={{position:"absolute",top:"42%",left:"50%",width:"130px",height:"130px",borderRadius:"50%",background:"radial-gradient(circle,#ffffff,"+rayCol+"cc 42%,transparent 72%)",boxShadow:"0 0 70px "+rayCol,pointerEvents:"none"}}/>
           <div className="pk-flash" style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"radial-gradient(circle at 50% 42%,#ffffff,"+rayCol+"aa 26%,transparent 58%)",pointerEvents:"none"}}/>
           {pack.parts.map((p,i)=><div key={i} className="pk-particle" style={{position:"absolute",top:"42%",left:"50%",width:p.s+"px",height:p.s+"px",borderRadius:"50%",background:rayCol,boxShadow:"0 0 9px "+rayCol,"--tx":p.tx+"px","--ty":p.ty+"px",animationDelay:(1.3+parseFloat(p.dl)).toFixed(2)+"s",pointerEvents:"none"}}/>)}
           {bestRar>=3 && <div className="pk-banner" style={{position:"relative",fontFamily:"'Cinzel',serif",color:"#ffd76a",fontSize:"clamp(22px,5.5vw,36px)",fontWeight:900,letterSpacing:".14em",marginBottom:"10px",textShadow:"0 0 32px #ffcc44",animationDelay:"1.4s"}}>CHAMPION PULL</div>}
-          <div style={{position:"relative",fontFamily:"'Cinzel',serif",color:REGCOL[pack.reg],fontSize:"21px",fontWeight:600,letterSpacing:".05em",marginBottom:"18px"}}>{pack.reg}</div>
-          <div style={{display:"flex",gap:"8px",flexWrap:"wrap",justifyContent:"center",maxWidth:"1040px",position:"relative"}}>
+          <div style={{position:"relative",fontFamily:"'Cinzel',serif",color:REGCOL[pack.reg],fontSize:"21px",fontWeight:600,letterSpacing:".05em",marginBottom:"10px"}}>{pack.reg}</div>
+          <div style={{display:"flex",gap:"6px",flexWrap:"wrap",justifyContent:"center",maxWidth:"calc(var(--pkw) * 7 + 36px)",position:"relative"}}>
             {pack.cards.map((code,i)=>{ const c=db.by[code]; if(!c)return null; const block=deckRuleBlock(db,deck,code); const on=pack.sel===code; const rc=RARCOL[cRar(c)]; const rare=cRar(c)>=2;
               return (
-                <div key={i} className="pk-card" style={{animationDelay:(1.3+i*0.13).toFixed(2)+"s",width:"100px"}}>
+                <div key={i} className="pk-card" style={{animationDelay:(1.3+i*0.13).toFixed(2)+"s",width:"var(--pkw)"}}>
                   <div onClick={()=>tap(code)} className={block?"":"btn"} style={{cursor:block?"not-allowed":"pointer",transform:on?"translateY(-12px)":"none",transition:"transform .18s"}}>
-                    <div style={{borderRadius:"11px",overflow:"hidden",border:"2px solid "+(on?C.gold:block?"#a44a4a55":rc+"aa"),opacity:block?0.4:1,"--gc":(on?C.gold:rc)+(rare?"cc":"66"),boxShadow:on?"0 0 30px #c8a96e":(rare?"0 0 20px "+rc+"99":"none"),animation:(rare&&!block)?("glowpulse 1.7s ease "+(1.1+i*0.15).toFixed(2)+"s infinite"):"none"}}>
+                    <div style={{position:"relative",borderRadius:"11px",overflow:"hidden",border:"2px solid "+(on?C.gold:block?"#a44a4a55":rc+"aa"),opacity:block?0.4:1,"--gc":(on?C.gold:rc)+(rare?"cc":"66"),boxShadow:on?"0 0 30px #c8a96e":(rare?"0 0 20px "+rc+"99":"none"),animation:(rare&&!block)?("glowpulse 1.7s ease "+(1.1+i*0.15).toFixed(2)+"s infinite"):"none"}}>
                       <img src={cImg(c)} alt={cName(c)} style={{width:"100%",display:"block"}} onError={e=>{e.target.style.opacity=0;}}/>
+                      {block && <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"3px 2px",background:"rgba(10,6,6,.88)",fontSize:"11px",lineHeight:1.2,textAlign:"center",color:"#e07a7a"}}>{block}</div>}
                     </div>
-                    {block && <div style={{fontSize:"15px",textAlign:"center",marginTop:"4px",color:"#e07a7a"}}>{block}</div>}
                   </div>
                 </div>
               ); })}
           </div>
-          <div className="pk-btns" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"11px",marginTop:"26px",position:"relative",animationDelay:"2.6s"}}>
+          <div className="pk-btns" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"9px",marginTop:"16px",position:"relative",animationDelay:"2.6s"}}>
             <button className="btn" onClick={done} style={{padding:"13px 30px",background:pack.sel?"linear-gradient(135deg,#c8a96e,#9a7440)":"transparent",border:"1px solid "+(pack.sel?"transparent":"#555"),borderRadius:"10px",color:pack.sel?C.bg:C.text,fontFamily:"'Cinzel',serif",fontSize:"20px",fontWeight:pack.sel?900:600}}>{pack.sel?("Add "+cName(db.by[pack.sel])+" to deck"):"Take nothing"}</button>
             {!locked && coins>=ECON.PACK_COST && <button className="btn" onClick={()=>{const r=pack.reg; done(); setTimeout(()=>open(r),150);}} style={{padding:"12px 28px",background:"linear-gradient(135deg,"+REGCOL[pack.reg]+"dd,"+REGCOL[pack.reg]+"88)",border:"none",borderRadius:"10px",color:"#0a0c14",fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900,letterSpacing:".05em",boxShadow:"0 0 22px "+REGCOL[pack.reg]+"66"}}>Open another ({coins} coins)</button>}
           </div>
@@ -934,7 +977,7 @@ function Tournament({data,me,role,mutate}){
   function undo(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.confirmed=false; mm.winner=null; mm.reports={}; return d; }); }
   function nextRound(){ mutate(d=>{ const tt=d.tournament; const cur=tt.rounds[tt.round-1]; if(cur.matches.some(m=>!m.confirmed))return d; if(tt.round>=tt.totalRounds)return d; const rc=computeRecords(tt.players,tt.rounds); const order=standing(tt.players,rc); const m=pairRound(order,rc); tt.rounds.push({matches:m}); tt.round++; return d; }); }
   function reset(){ mutate(d=>{ d.tournament={phase:"idle"}; return d; }); }
-  function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups||!tt.signups[me])return d; if(Date.now()<(tt.startTime-7200000))return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; return d; }); }
+  function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups||!tt.signups[me])return d; if(Date.now()<(tt.startTime-7200000))return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; logStat(d,"checkins",{a:me,wk:d.week||1,t:Date.now()}); return d; }); }
   function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; } return d; }); }
   function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players,tt.rounds); const ord=standing(tt.players,rc); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
   function reportTri(k,winner){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } } return d; }); }
@@ -1258,7 +1301,7 @@ function App(){
   return (
     <div style={{minHeight:"100vh"}}>
       <TopBar me={me} role={role} coins={data.users[me].coins} onLogout={logout} changePw={changePw}/>
-      {(role==="admin"||role==="mod") ? <AdminHome data={data} mutate={mutate} me={me}/> : (db&&starters ? <PlayerHome data={data} me={me} db={db} starters={starters} mutate={mutate}/> : <Loading/>)}
+      {(role==="admin"||role==="mod") ? <AdminHome data={data} mutate={mutate} me={me} db={db}/> : (db&&starters ? <PlayerHome data={data} me={me} db={db} starters={starters} mutate={mutate}/> : <Loading/>)}
     </div>
   );
 }
