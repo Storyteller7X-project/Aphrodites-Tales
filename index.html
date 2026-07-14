@@ -825,7 +825,7 @@ function computeRecords(players,rounds){
 function buch(u,rec){ return (rec[u]&&rec[u].opps||[]).reduce((s,o)=>s+(rec[o]?rec[o].w:0),0); }
 function solk(u,rec){ const os=(rec[u]&&rec[u].opps||[]).map(o=>rec[o]?rec[o].w:0); if(!os.length)return 0; const sum=os.reduce((a,b)=>a+b,0); return sum-Math.min.apply(null,os); }
 function h2h(a,b,rounds){ let r=0; (rounds||[]).forEach(rd=>(rd.matches||[]).forEach(m=>{ if(!m.confirmed||m.bye)return; if((m.a===a&&m.b===b)||(m.a===b&&m.b===a)){ if(m.winner===a)r=1; else if(m.winner===b)r=-1; } })); return r; }
-function standing(players,rec,rounds){ return players.slice().sort((x,y)=>(rec[y].w-rec[x].w)||(buch(y,rec)-buch(x,rec))||(solk(y,rec)-solk(x,rec))||(-h2h(x,y,rounds))||x.localeCompare(y)); }
+function standing(players,rec,rounds,tb){ tb=tb||{}; return players.slice().sort((x,y)=>(rec[y].w-rec[x].w)||(buch(y,rec)-buch(x,rec))||(solk(y,rec)-solk(x,rec))||(-h2h(x,y,rounds))||((tb[y]||0)-(tb[x]||0))||x.localeCompare(y)); }
 function pairRound(sorted,rec){
   let pool=sorted.slice(); const matches=[];
   if(pool.length%2===1){ let bi=-1; for(let i=pool.length-1;i>=0;i--){ if(!rec[pool[i]].bye){bi=i;break;} } if(bi<0)bi=pool.length-1; const bye=pool.splice(bi,1)[0]; matches.push({a:bye,b:null,winner:bye,confirmed:true,bye:true,report:null}); }
@@ -855,7 +855,7 @@ function triRecompute(tri){
 }
 function triW(tri,k){ return tri[k]&&tri[k].confirmed?tri[k].winner:null; }
 function triL(tri,k){ return triRes(tri[k],"l"); }
-function triPlacements(tri){ return {1:triW(tri,"A1"),2:triW(tri,"D1"),3:triW(tri,"C1"),4:triW(tri,"B1")}; }
+function triPlacements(tri){ return {1:triW(tri,"A1"),2:triW(tri,"B1"),3:triW(tri,"C1"),4:triW(tri,"D1")}; }
 function archiveTournament(d){
   const tt=d.tournament; if(!tt||tt.archived) return;
   if(!d.history) d.history=[];
@@ -915,7 +915,7 @@ function Tournament({data,me,role,mutate}){
   const players=t.players||[];
   const rounds=t.rounds||[];
   const rec=computeRecords(players,rounds);
-  const stand=standing(players,rec,rounds);
+  const stand=standing(players,rec,rounds,(data.tournament&&data.tournament.tiebreak)||{});
   const ci=Object.keys(t.checkin||{});
 
   const [nowTs,setNowTs]=useState(Date.now());
@@ -928,7 +928,7 @@ function Tournament({data,me,role,mutate}){
   function setName(nm){ mutate(d=>{ d.tournament.name=nm; return d; }); }
   const [signupErr,setSignupErr]=useState("");
   function signUp(riot,disc){ const su=(data.tournament&&data.tournament.signups)||{}; const dup=Object.keys(su).some(function(u){ return u!==me && (su[u].riotId===riot || su[u].discordId===disc); }); if(dup){ setSignupErr("An account with this Riot ID or Discord ID is already signed up for this tournament. Log out and use that account (or check in with it)."); return; } setSignupErr(""); mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups)tt.signups={}; tt.signups[me]={riotId:riot,discordId:disc}; if(d.users[me]){ d.users[me].riotId=riot; d.users[me].discordId=disc; } return d; }); }
-  function startSwiss(){ mutate(d=>{ const list=Object.keys(d.tournament.checkin||{}); if(list.length<2)return d; const R=swissRounds(list.length); const order=shuffle(list); const rc=computeRecords(list,[]); const m=pairRound(order,rc); d.tournament={phase:"swiss",checkin:d.tournament.checkin,players:list,round:1,totalRounds:R,rounds:[{matches:m}]}; return d; }); }
+  function startSwiss(){ mutate(d=>{ const list=Object.keys(d.tournament.checkin||{}); if(list.length<4)return d; const R=swissRounds(list.length); const order=shuffle(list); const rc=computeRecords(list,[]); const m=pairRound(order,rc); d.tournament={phase:"swiss",checkin:d.tournament.checkin,players:list,round:1,totalRounds:R,rounds:[{matches:m}]}; return d; }); }
   function confirmMatch(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(!mm.report)return d; mm.winner=mm.report.winner; mm.confirmed=true; return d; }); }
   function setWinner(ri,mi,w){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.winner=w; mm.confirmed=true; return d; }); }
   function undo(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.confirmed=false; mm.winner=null; mm.reports={}; return d; }); }
@@ -938,6 +938,7 @@ function Tournament({data,me,role,mutate}){
   function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; } return d; }); }
   function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players,tt.rounds); const ord=standing(tt.players,rc); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
   function reportTri(k,winner){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } } return d; }); }
+  function setTiebreak(n,delta){ mutate(d=>{ if(!d.tournament.tiebreak)d.tournament.tiebreak={}; d.tournament.tiebreak[n]=(d.tournament.tiebreak[n]||0)+delta; return d; }); }
   function confirmTri(k){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(!mm.report)return d; mm.winner=mm.report.winner; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } return d; }); }
   function setTriWinner(k,w){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; mm.winner=w; mm.confirmed=true; mm.report={winner:w,by:"admin"}; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } return d; }); }
   function awardAP(){ mutate(d=>{ const pl=d.tournament.placements||{}; const pts={1:5,2:3,3:2,4:1}; [1,2,3,4].forEach(k=>{ const u=pl[k]; if(u&&d.users[u]) d.users[u].aphro=(d.users[u].aphro||0)+pts[k]; }); d.tournament.awarded=true; return d; }); }
@@ -1025,7 +1026,7 @@ function Tournament({data,me,role,mutate}){
           {["EMEA","AM"].map(sv=><button key={sv} className="btn" onClick={()=>setServer(sv)} style={{padding:"6px 16px",background:t.server===sv?"#c8a96e22":"transparent",border:"1px solid "+(t.server===sv?"#c8a96eaa":"#333"),borderRadius:"7px",color:t.server===sv?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"17px"}}>{sv}</button>)}
         </div>
         <div style={{display:"flex",gap:"8px"}}>
-          <button className="btn" disabled={ci.length<2} onClick={startSwiss} style={{flex:1,padding:"11px",background:ci.length>=2?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"9px",color:ci.length>=2?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900}}>Start Swiss round 1 ({ci.length} checked in)</button>
+          <button className="btn" disabled={ci.length<4} onClick={startSwiss} style={{flex:1,padding:"11px",background:ci.length>=4?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"9px",color:ci.length>=4?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900}}>Start Swiss round 1 ({ci.length} checked in{ci.length<4?" - need 4":""})</button>
           <button className="btn" onClick={reset} style={{padding:"11px 16px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"9px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"17px"}}>Cancel</button>
         </div>
         <div style={{fontSize:"15px",color:"#948a74",marginTop:"8px"}}>Only checked-in players are seeded. Anyone who did not check in is dropped.</div>
@@ -1117,7 +1118,12 @@ function Tournament({data,me,role,mutate}){
           <span style={{fontSize:"18px",color:C.text}}><strong style={{color:C.gold}}>{k}.</strong> {pl[k]||"-"}</span>
           <span style={{fontSize:"17px",color:C.muted,fontFamily:"'Cinzel',serif"}}>+{({1:5,2:3,3:2,4:1})[k]} AP</span>
         </div>))}
-        {(role==="admin"||role==="mod")&&<div style={{fontSize:"15px",color:"#948a74",marginTop:"10px",textAlign:"center",lineHeight:1.5}}>Suggested placements above. Award Aphrodite Points to accounts manually in the Accounts tab.</div>}
+        {(role==="admin"||role==="mod")&&(t.awarded
+          ? <div style={{marginTop:"12px",fontSize:"16px",color:"#6ac68a",fontFamily:"'Cinzel',serif",textAlign:"center"}}>Aphrodite Points awarded to the top 4.</div>
+          : <React.Fragment>
+              <button className="btn" onClick={awardAP} style={{width:"100%",marginTop:"12px",padding:"11px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900}}>Award Aphrodite Points automatically (5/3/2/1)</button>
+              <div style={{fontSize:"14px",color:"#948a74",marginTop:"8px",textAlign:"center",lineHeight:1.5}}>Or add them manually per account in the Accounts tab.</div>
+            </React.Fragment>)}
       </div>}
     </div>;
   }
@@ -1178,10 +1184,14 @@ function Tournament({data,me,role,mutate}){
           <span style={{flex:1,fontSize:"18px",color:n===me?C.gold:C.text}}>{n}{data.users[n]&&data.users[n].riotId?<span style={{color:C.muted,fontSize:"15px"}}> · {data.users[n].riotId}</span>:null}</span>
           {(()=>{const uu=data.users[n]||{};const url=deckUrl(uu.deck);return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null;})()}
           <span style={{fontSize:"14px",color:"#8a8172",fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>Bh {buch(n,rec)} · Sk {solk(n,rec)}</span>
+          {isAdmin&&<div style={{display:"flex",flexDirection:"column",gap:"1px"}}>
+            <button className="btn" onClick={()=>setTiebreak(n,1)} style={{padding:"0 7px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:C.muted,fontSize:"13px",lineHeight:"17px"}}>▲</button>
+            <button className="btn" onClick={()=>setTiebreak(n,-1)} style={{padding:"0 7px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:C.muted,fontSize:"13px",lineHeight:"17px"}}>▼</button>
+          </div>}
           <span style={{fontSize:"17px",color:C.muted,fontFamily:"'Cinzel',serif",minWidth:"46px",textAlign:"right"}}>{rec[n].w}-{rec[n].l}</span>
         </div>
       ))}
-      <div style={{fontSize:"15px",color:"#948a74",marginTop:"8px",lineHeight:1.5}}>Sorted by wins, then Buchholz (Bh), Solkoff (Sk), head-to-head. Top 8 advance to the Triangle bracket.</div>
+      <div style={{fontSize:"15px",color:"#948a74",marginTop:"8px",lineHeight:1.5}}>Sorted by wins, then Buchholz (Bh), Solkoff (Sk), head-to-head. Admins can nudge with ▲▼ to break any remaining tie manually. Top 8 advance to the Triangle bracket.</div>
     </div>
   </div>;
 }
