@@ -788,6 +788,7 @@ function Store({db,deck,coins,locked,onBuy}){
 
 function Packs({db,deck,coins,locked,onCharge,onKeep,onSkip}){
   const [pack,setPack]=useState(null);
+  const [hz,setHz]=useState(null);
   function open(r){
     if(locked||coins<ECON.PACK_COST||deckTotal(deck)>=ECON.DECK_MAX) return;
     const cards=rollPack(db,db.pools[r],deck);
@@ -797,7 +798,7 @@ function Packs({db,deck,coins,locked,onCharge,onKeep,onSkip}){
     packSfx(cards.map(code=>{const c=db.by[code];return c?cRar(c):0;}));
   }
   function tap(code){ if(deckRuleBlock(db,deck,code)) return; setPack(p=>({...p,sel:p.sel===code?null:code})); }
-  function done(){ if(pack){ if(pack.sel) onKeep(pack.sel,pack.reg,pack.cards); else onSkip(pack.reg,pack.cards); } setPack(null); }
+  function done(){ if(pack){ if(pack.sel) onKeep(pack.sel,pack.reg,pack.cards); else onSkip(pack.reg,pack.cards); } setHz(null); setPack(null); }
   const bestRar=pack?Math.max.apply(null,pack.cards.map(code=>{const c=db.by[code];return c?cRar(c):0;})):0;
   const rayCol=bestRar>=3?"#ffcc44":(pack?REGCOL[pack.reg]:"#c8a96e");
   return (
@@ -820,7 +821,7 @@ function Packs({db,deck,coins,locked,onCharge,onKeep,onSkip}){
         </div>
       </div>
       {pack && (
-        <div className={"pk-overlay"+(bestRar>=3?" pk-shake":"")} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9000,background:"radial-gradient(ellipse at 50% 42%,"+REGCOL[pack.reg]+"1f,rgba(3,4,10,.98) 60%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"16px 12px",overflowY:"auto","--pkw":"min(90px, (100vw - 60px) / 7, (100vh - 268px) / 3.06)"}}>
+        <div className={"pk-overlay"+(bestRar>=3?" pk-shake":"")} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9000,background:"radial-gradient(ellipse at 50% 42%,"+REGCOL[pack.reg]+"1f,rgba(3,4,10,.98) 60%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"16px 12px",overflowY:"auto","--pkw":"min(110px, (100vw - 60px) / 7, (100vh - 268px) / 3.06)"}}>
           <div className="pk-ray" style={{position:"absolute",top:"42%",left:"50%",width:"230vmax",height:"230vmax",background:"repeating-conic-gradient(from 0deg,"+rayCol+"00 0deg,"+rayCol+"26 1.1deg,"+rayCol+"00 2.6deg,"+rayCol+"00 11deg)",pointerEvents:"none"}}/>
           <div className="pk-orb" style={{position:"absolute",top:"42%",left:"50%",width:"130px",height:"130px",borderRadius:"50%",background:"radial-gradient(circle,#ffffff,"+rayCol+"cc 42%,transparent 72%)",boxShadow:"0 0 70px "+rayCol,pointerEvents:"none"}}/>
           <div className="pk-flash" style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"radial-gradient(circle at 50% 42%,#ffffff,"+rayCol+"aa 26%,transparent 58%)",pointerEvents:"none"}}/>
@@ -831,7 +832,7 @@ function Packs({db,deck,coins,locked,onCharge,onKeep,onSkip}){
             {pack.cards.map((code,i)=>{ const c=db.by[code]; if(!c)return null; const block=deckRuleBlock(db,deck,code); const on=pack.sel===code; const rc=RARCOL[cRar(c)]; const rare=cRar(c)>=2;
               return (
                 <div key={i} className="pk-card" style={{animationDelay:(1.3+i*0.13).toFixed(2)+"s",width:"var(--pkw)"}}>
-                  <div onClick={()=>tap(code)} className={block?"":"btn"} style={{cursor:block?"not-allowed":"pointer",transform:on?"translateY(-12px)":"none",transition:"transform .18s"}}>
+                  <div onClick={()=>tap(code)} className={block?"":"btn"} onMouseEnter={e=>setHz({x:e.clientX,y:e.clientY,code:code})} onMouseMove={e=>setHz({x:e.clientX,y:e.clientY,code:code})} onMouseLeave={()=>setHz(null)} style={{cursor:block?"not-allowed":"pointer",transform:on?"translateY(-12px)":"none",transition:"transform .18s"}}>
                     <div style={{position:"relative",borderRadius:"11px",overflow:"hidden",border:"2px solid "+(on?C.gold:block?"#a44a4a55":rc+"aa"),opacity:block?0.4:1,"--gc":(on?C.gold:rc)+(rare?"cc":"66"),boxShadow:on?"0 0 30px #c8a96e":(rare?"0 0 20px "+rc+"99":"none"),animation:(rare&&!block)?("glowpulse 1.7s ease "+(1.1+i*0.15).toFixed(2)+"s infinite"):"none"}}>
                       <img src={cImg(c)} alt={cName(c)} style={{width:"100%",display:"block"}} onError={e=>{e.target.style.opacity=0;}}/>
                       {block && <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"3px 2px",background:"rgba(10,6,6,.88)",fontSize:"11px",lineHeight:1.2,textAlign:"center",color:"#e07a7a"}}>{block}</div>}
@@ -844,6 +845,10 @@ function Packs({db,deck,coins,locked,onCharge,onKeep,onSkip}){
             <button className="btn" onClick={done} style={{padding:"13px 30px",background:pack.sel?"linear-gradient(135deg,#c8a96e,#9a7440)":"transparent",border:"1px solid "+(pack.sel?"transparent":"#555"),borderRadius:"10px",color:pack.sel?C.bg:C.text,fontFamily:"'Cinzel',serif",fontSize:"20px",fontWeight:pack.sel?900:600}}>{pack.sel?("Add "+cName(db.by[pack.sel])+" to deck"):"Take nothing"}</button>
             {!locked && coins>=ECON.PACK_COST && <button className="btn" onClick={()=>{const r=pack.reg; done(); setTimeout(()=>open(r),150);}} style={{padding:"12px 28px",background:"linear-gradient(135deg,"+REGCOL[pack.reg]+"dd,"+REGCOL[pack.reg]+"88)",border:"none",borderRadius:"10px",color:"#0a0c14",fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900,letterSpacing:".05em",boxShadow:"0 0 22px "+REGCOL[pack.reg]+"66"}}>Open another ({coins} coins)</button>}
           </div>
+          {hz && db.by[hz.code] && ReactDOM.createPortal(
+            <div style={{position:"fixed",left:Math.min(hz.x+20,(window.innerWidth||400)-278),top:Math.max(8,Math.min(hz.y-200,(window.innerHeight||600)-420)),width:"264px",zIndex:9999,pointerEvents:"none",borderRadius:"12px",overflow:"hidden",boxShadow:"0 14px 48px rgba(0,0,0,.9)",border:"2px solid "+(RARCOL[cRar(db.by[hz.code])]||"#a8a8a8")}}>
+              <img src={cImg(db.by[hz.code])} alt="" style={{width:"100%",display:"block"}}/>
+            </div>, document.body)}
         </div>
       )}
     </div>
