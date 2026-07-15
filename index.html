@@ -55,6 +55,7 @@
 <!-- Firebase (Realtime Database) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <!-- React + Babel (no build step) -->
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -106,6 +107,22 @@ const wrap={display:"flex",flexDirection:"column",alignItems:"center",justifyCon
 
 /* ---------- helpers ---------- */
 function genPw(){const d="23456789",l="abcdefghjkmnpqrstuvwxyz";const r=a=>a[Math.floor(Math.random()*a.length)];return r(d)+r(l)+r(d)+r(l);}
+/* Passwords are never stored in plain text. PBKDF2-SHA256, salted per username. */
+function bufToHex(b){ return Array.prototype.map.call(new Uint8Array(b),x=>("00"+x.toString(16)).slice(-2)).join(""); }
+function subtleOK(){ return !!(window.crypto && window.crypto.subtle); }
+async function pwHash(user,plain){
+  if(!subtleOK()) throw new Error("no-subtle");
+  const enc=new TextEncoder();
+  const key=await window.crypto.subtle.importKey("raw",enc.encode(String(plain)),{name:"PBKDF2"},false,["deriveBits"]);
+  const bits=await window.crypto.subtle.deriveBits({name:"PBKDF2",salt:enc.encode("aphrodites-tales:"+user),iterations:120000,hash:"SHA-256"},key,256);
+  return "pbkdf2:"+bufToHex(bits);
+}
+function isHashed(s){ return typeof s==="string" && s.indexOf("pbkdf2:")===0; }
+async function pwVerify(user,plain,stored){
+  if(!stored) return false;
+  if(!isHashed(stored)) return String(plain)===String(stored);
+  try{ return (await pwHash(user,plain))===stored; }catch(e){ return false; }
+}
 
 /* ---------- data model (shared, in Firebase) ---------- */
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
@@ -181,16 +198,19 @@ function Login({data,onLogin,onSpectator,onRegister,onRequestReset}){
   const [done,setDone]=useState(false);
   const [sent,setSent]=useState(false);
 
-  function doLogin(){
+  async function doLogin(){
     const n=name.trim();
     if(!n){setErr("Enter a username.");return;}
     if(n==="Spectator"){onSpectator();return;}
     const u=data.users&&data.users[n];
     if(!u){ setErr("Account not found."); return; }
-    if(!u.noPassword && u.password!==pw){ setErr("Incorrect password."); return; }
+    if(!u.noPassword){
+      const ok=await pwVerify(n,pw,u.password);
+      if(!ok){ setErr("Incorrect password."); return; }
+    }
     onLogin(n);
   }
-  function doReg(){
+  async function doReg(){
     const n=name.trim();
     if(!n){setErr("Choose a username.");return;}
     if(n==="Spectator"){setErr("That name is reserved.");return;}
@@ -198,7 +218,7 @@ function Login({data,onLogin,onSpectator,onRegister,onRequestReset}){
     if(!pw){setErr("Choose a password.");return;}
     if(!riot.trim()){setErr("Enter your Riot ID.");return;}
     if(!disc.trim()){setErr("Enter your Discord ID.");return;}
-    onRegister(n,pw,riot.trim(),disc.trim());
+    await onRegister(n,pw,riot.trim(),disc.trim());
     onLogin(n);
   }
   function doForgot(){ const n=name.trim(); if(!n){setErr("Enter your username.");return;} if(!data.users||!data.users[n]){setErr("No account with that username.");return;} onRequestReset(n); setSent(true); setErr(""); }
@@ -270,7 +290,7 @@ function Login({data,onLogin,onSpectator,onRegister,onRequestReset}){
 function TopBar({me,role,coins,onLogout,changePw}){
   const [open,setOpen]=useState(false);
   const [cur,setCur]=useState(""); const [np,setNp]=useState(""); const [msg,setMsg]=useState("");
-  function submit(){ const err=changePw(cur,np); if(err){ setMsg(err); } else { setMsg("Password changed."); setCur(""); setNp(""); setTimeout(function(){ setOpen(false); setMsg(""); },1300); } }
+  async function submit(){ const err=await changePw(cur,np); if(err){ setMsg(err); } else { setMsg("Password changed."); setCur(""); setNp(""); setTimeout(function(){ setOpen(false); setMsg(""); },1300); } }
   return (
     <React.Fragment>
     <div style={{background:"#090b13",borderBottom:"1px solid #c8a96e1a",padding:"10px 18px",position:"sticky",top:0,zIndex:50,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -376,7 +396,7 @@ function AdminHome({data,mutate,me,db}){
   function makeTests(){ mutate(d=>{ if(!d.users)d.users={}; for(let i=1;i<=8;i++){ d.users["Test"+i]=freshTest(); } d.testSeeded=true; return d; }); setMsg("8 test accounts ready (Test1-Test8, no password)."); }
   function grant(n,amt){ mutate(d=>{ if(d.users[n]) d.users[n].coins=Math.max(0,(d.users[n].coins||0)+amt); return d; }); }
   function apGrant(n,amt){ mutate(d=>{ if(d.users[n]) d.users[n].aphro=Math.max(0,(d.users[n].aphro||0)+amt); return d; }); }
-  function resetPw(n){ const ch="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"; let np=""; for(let i=0;i<10;i++) np+=ch[Math.floor(Math.random()*ch.length)]; mutate(d=>{ if(d.users[n]) d.users[n].password=np; if(d.pwRequests) delete d.pwRequests[n]; return d; }); setShownPw({n:n,pw:np}); }
+  async function resetPw(n){ const ch="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"; let np=""; for(let i=0;i<10;i++) np+=ch[Math.floor(Math.random()*ch.length)]; const h=await pwHash(n,np); mutate(d=>{ if(d.users[n]){ d.users[n].password=h; d.users[n].noPassword=false; } if(d.pwRequests) delete d.pwRequests[n]; return d; }); setShownPw({n:n,pw:np}); }
 
   const tab=(t,label)=>(
     <button key={t} className="btn" onClick={()=>{setAtab(t);setMsg("");setDelArm("");}}
@@ -1243,6 +1263,7 @@ function Tournament({data,me,role,mutate}){
    ============================================================ */
 function App(){
   const [data,setData]=useState(null);
+  const [dbErr,setDbErr]=useState(null);
   const [me,setMe]=useState(()=>{ try{return sessionStorage.getItem("at_me")||null;}catch(e){return null;} });
   const [spectator,setSpectator]=useState(false);
   const [db,setDb]=useState(null);
@@ -1256,7 +1277,8 @@ function App(){
 
   useEffect(()=>{
     if(!CONFIG_OK) return;
-    const cb = stateRef.on("value", snap=>{
+    let off=null, dead=false;
+    function handle(snap){
       const val=snap.val();
       if(val===null){ stateRef.set(SEED); return; }
       if(!val.testSeeded){
@@ -1273,9 +1295,32 @@ function App(){
       if(val.users && val.users.Aphrodite && val.users.Aphrodite.role==="mod"){
         const nu=JSON.parse(JSON.stringify(val)); nu.users.Aphrodite.role="admin"; stateRef.set(nu); return;
       }
+      const plain=Object.keys(val.users||{}).filter(n=>val.users[n].password && !isHashed(val.users[n].password));
+      if(plain.length && subtleOK()){
+        (async ()=>{
+          try{
+            const nu=JSON.parse(JSON.stringify(val));
+            for(let i=0;i<plain.length;i++){ const n=plain[i]; nu.users[n].password=await pwHash(n,nu.users[n].password); }
+            stateRef.set(nu);
+          }catch(e){ console.error("Password migration failed:",e); setData(val); }
+        })();
+        return;
+      }
       setData(val);
-    }, err=>{ console.error("Firebase:",err); });
-    return ()=>stateRef.off("value", cb);
+    }
+    function attach(){
+      if(dead||off) return;
+      off = stateRef.on("value", handle, err=>{
+        console.error("Firebase:",err);
+        setDbErr((err&&(err.code||err.message))||"permission-denied");
+      });
+    }
+    if(firebase.auth){
+      firebase.auth().signInAnonymously()
+        .then(()=>attach())
+        .catch(e=>{ console.warn("Anonymous sign-in unavailable:",e&&e.code); attach(); });
+    } else { attach(); }
+    return ()=>{ dead=true; if(off) stateRef.off("value", off); };
   },[]);
 
   function mutate(fn){
@@ -1286,12 +1331,21 @@ function App(){
     });
   }
   function login(n){ setMe(n); try{sessionStorage.setItem("at_me",n);}catch(e){} }
-  function register(n,pw,riot,disc){ mutate(d=>{ if(!d.users)d.users={}; if(d.users[n]) return d; const np=freshPlayer(pw); np.coins=100+95*((d.week||1)-1); np.riotId=riot||""; np.discordId=disc||""; d.users[n]=np; return d; }); }
+  async function register(n,pw,riot,disc){ const h=await pwHash(n,pw); mutate(d=>{ if(!d.users)d.users={}; if(d.users[n]) return d; const np=freshPlayer(h); np.coins=100+95*((d.week||1)-1); np.riotId=riot||""; np.discordId=disc||""; d.users[n]=np; return d; }); }
   function requestReset(n){ mutate(d=>{ if(!d.users||!d.users[n])return d; if(!d.pwRequests)d.pwRequests={}; d.pwRequests[n]=Date.now(); return d; }); }
   function logout(){ setMe(null); setSpectator(false); try{sessionStorage.removeItem("at_me");}catch(e){} }
-  function changePw(current,newPw){ const u=data.users[me]; if(!u) return "Not logged in."; if(!newPw||!newPw.trim()) return "Enter a new password."; if(!u.noPassword && u.password!==current) return "Current password is wrong."; mutate(d=>{ if(d.users[me]) d.users[me].password=newPw.trim(); return d; }); return null; }
+  async function changePw(current,newPw){ const u=data.users[me]; if(!u) return "Not logged in."; if(!newPw||!newPw.trim()) return "Enter a new password."; if(!u.noPassword){ const ok=await pwVerify(me,current,u.password); if(!ok) return "Current password is wrong."; } const h=await pwHash(me,newPw.trim()); mutate(d=>{ if(d.users[me]){ d.users[me].password=h; d.users[me].noPassword=false; } return d; }); return null; }
 
   if(!CONFIG_OK) return <SetupScreen/>;
+  if(dbErr) return (
+    <div style={wrap}>
+      <div style={{...sCard,maxWidth:"520px",borderColor:"#5a2a2a"}}>
+        <div style={{...sLbl,marginBottom:"10px",color:"#e07a7a"}}>Database locked out</div>
+        <div style={{fontSize:"18px",color:C.text,lineHeight:1.6,marginBottom:"12px"}}>The app could not read the database ({String(dbErr)}).</div>
+        <div style={{fontSize:"16px",color:C.muted,lineHeight:1.6}}>If you just changed the Database Rules, turn on Anonymous sign-in in Firebase (Authentication, Sign-in method, Anonymous, Enable) and reload this page.</div>
+      </div>
+    </div>
+  );
   if(!data) return <Loading/>;
   if(spectator) return <Spectator data={data} onLeave={()=>setSpectator(false)}/>;
   if(!me || !(data.users && data.users[me])) {
