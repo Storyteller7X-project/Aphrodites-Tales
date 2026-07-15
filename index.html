@@ -111,7 +111,8 @@ function genPw(){const d="23456789",l="abcdefghjkmnpqrstuvwxyz";const r=a=>a[Mat
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-function freshMod(){ return {password:MOD_PW,role:"mod",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
+const OWNER="Storyteller";
+function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 function freshPlayer(pw){ return {password:pw,role:"player",coins:100,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 function freshTest(){ return {password:"",role:"player",noPassword:true,coins:100,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 
@@ -326,7 +327,6 @@ function AdminHome({data,mutate,me,db}){
   const [atab,setAtab]=useState("home");
   const [msg,setMsg]=useState("");
   const [delArm,setDelArm]=useState("");
-  const [resetArm,setResetArm]=useState(false);
   const [seasonArm,setSeasonArm]=useState(false);
   const [shownPw,setShownPw]=useState(null);
   const pending=Object.keys(data.pending||{});
@@ -336,8 +336,7 @@ function AdminHome({data,mutate,me,db}){
 
   function setPhase(p){ mutate(d=>{ d.seasonPhase=p; d.prepEnded=(p!=="building"); if(p==="locked"){ const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"&&us[n].deck&&us[n].deck.length){ logStat(d,"deckLocks",{a:n,wk:d.week||1,deck:encodeDeck(us[n].deck),size:deckTotal(us[n].deck),t:Date.now()}); } }); } return d; }); }
   function newWeek(){ mutate(d=>{ d.week=(d.week||1)+1; d.prepEnded=false; d.seasonPhase="building"; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player") us[n].coins=(us[n].coins||0)+100; }); return d; }); setMsg("New week started. +100 coins to all players."); }
-  function delPlayer(n){ mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
-  function resetAll(){ mutate(d=>{ const keep={}; Object.keys(d.users||{}).forEach(n=>{ if(d.users[n].role==="admin"||d.users[n].role==="mod") keep[n]=d.users[n]; }); d.users=keep; d.pending={}; d.week=1; d.season=1; d.prepEnded=false; d.seasonPhase="building"; d.champion=null; d.tournament={started:false}; return d; }); setResetArm(false); setMsg("All test accounts cleared."); }
+  function delPlayer(n){ if(n===OWNER){ setDelArm(""); setMsg("The "+OWNER+" account cannot be deleted."); return; } mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
   function resetSeason(){ mutate(d=>{ const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"){ us[n].starter=null; us[n].deck=null; us[n].coins=100; us[n].aphro=0; } }); d.season=(d.season||1)+1; d.week=1; d.prepEnded=false; d.seasonPhase="building"; d.tournament={phase:"idle"}; return d; }); setSeasonArm(false); setMsg("Season reset. All players are back to starter deck choice."); }
   function exportStats(){
     const X=window.XLSX; if(!X){ setMsg("Spreadsheet tool is still loading, try again in a moment."); return; }
@@ -380,7 +379,7 @@ function AdminHome({data,mutate,me,db}){
   function resetPw(n){ const ch="abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789"; let np=""; for(let i=0;i<10;i++) np+=ch[Math.floor(Math.random()*ch.length)]; mutate(d=>{ if(d.users[n]) d.users[n].password=np; if(d.pwRequests) delete d.pwRequests[n]; return d; }); setShownPw({n:n,pw:np}); }
 
   const tab=(t,label)=>(
-    <button key={t} className="btn" onClick={()=>{setAtab(t);setMsg("");setDelArm("");setResetArm(false);}}
+    <button key={t} className="btn" onClick={()=>{setAtab(t);setMsg("");setDelArm("");}}
       style={{flex:1,padding:"9px 4px",background:atab===t?"#c8a96e18":"transparent",border:"1px solid "+(atab===t?"#c8a96e44":"transparent"),borderRadius:"7px",color:atab===t?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600,letterSpacing:".04em"}}>{label}</button>
   );
 
@@ -449,7 +448,7 @@ function AdminHome({data,mutate,me,db}){
                       <button className="btn" onClick={()=>resetPw(n)} style={{flexShrink:0,padding:"6px 10px",background:"transparent",border:"1px solid #3a4a5a",borderRadius:"6px",color:"#8aa",fontFamily:"'Cinzel',serif",fontSize:"14px"}}>reset pw</button>
                       {delArm===n
                         ? <button className="btn" onClick={()=>delPlayer(n)} style={{flexShrink:0,padding:"6px 10px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:700}}>Confirm</button>
-                        : <button className="btn" onClick={()=>{setDelArm(n);setResetArm(false);}} style={{flexShrink:0,padding:"6px 10px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Delete</button>}
+                        : <button className="btn" onClick={()=>setDelArm(n)} style={{flexShrink:0,padding:"6px 10px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Delete</button>}
                     </div>
                   </div>
                 </div>
@@ -460,11 +459,6 @@ function AdminHome({data,mutate,me,db}){
             <div style={{...sLbl,marginBottom:"8px"}}>Test accounts</div>
             <div style={{fontSize:"17px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Creates Test1 - Test8 as players you can log into with no password (just the username). Re-run to reset them to 100 coins and no deck.</div>
             <button className="btn" onClick={makeTests} style={{width:"100%",padding:"9px",background:"#0d1a2a",border:"1px solid #334466",borderRadius:"8px",color:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Create / reset 8 test accounts</button>
-          </div>}
-          {isFullAdmin && <div style={{...sCard,borderColor:"#5a2a2a"}}>
-            <div style={{...sLbl,marginBottom:"6px",color:"#a66"}}>Danger zone</div>
-            <div style={{fontSize:"17px",color:C.muted,marginBottom:"10px",lineHeight:1.6}}>Removes every player and pending registration (keeps the Storyteller admin) and resets the season. Use this to wipe the board after a test.</div>
-            <button className="btn" onClick={()=>resetArm?resetAll():setResetArm(true)} style={{width:"100%",padding:"9px",background:resetArm?"#3a1010":"transparent",border:"1px solid "+(resetArm?"#a33":"#5a2a2a"),borderRadius:"8px",color:resetArm?"#f88":"#a66",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>{resetArm?"Confirm: delete ALL players & reset":"Delete all test accounts & reset season"}</button>
           </div>}
         </React.Fragment>
       )}
@@ -599,13 +593,13 @@ function coinOf(db,code){ const c=db.by[code]; return c?cCoin(c):20; }
 function isChampCode(db,code){ const c=db.by[code]; return !!c&&cChamp(c); }
 function deckTotal(deck){ return (deck||[]).reduce((s,e)=>s+(e.count||0),0); }
 function logStat(d,cat,entry){ if(!d.stats)d.stats={}; if(!d.stats[cat])d.stats[cat]=[]; d.stats[cat].push(entry); if(d.stats[cat].length>5000) d.stats[cat]=d.stats[cat].slice(-5000); }
-function uniqueChamps(db,deck){ return (deck||[]).filter(e=>isChampCode(db,e.code)).length; }
+function champCards(db,deck){ return (deck||[]).filter(e=>isChampCode(db,e.code)).reduce((s,e)=>s+(e.count||0),0); }
 function copiesOf(deck,code){ const e=(deck||[]).find(x=>x.code===code); return e?e.count:0; }
 function addToDeck(deck,code){ const d=(deck||[]).map(e=>({...e})); const e=d.find(x=>x.code===code); if(e)e.count++; else d.push({code,count:1}); return d; }
 function deckRuleBlock(db,deck,code){
   if(deckTotal(deck)>=ECON.DECK_MAX) return "Deck full ("+ECON.DECK_MAX+")";
   if(copiesOf(deck,code)>=ECON.MAX_COPIES) return "Max "+ECON.MAX_COPIES+" copies";
-  if(isChampCode(db,code)&&copiesOf(deck,code)===0&&uniqueChamps(db,deck)>=ECON.MAX_CHAMPS) return "Max "+ECON.MAX_CHAMPS+" champions";
+  if(isChampCode(db,code)&&champCards(db,deck)>=ECON.MAX_CHAMPS) return "Max "+ECON.MAX_CHAMPS+" champion cards";
   return null;
 }
 function removalCost(n){ if(n>=100)return 1; if(n>=90)return 2; if(n>=80)return 5; if(n>=70)return 10; if(n>=60)return 20; if(n>=50)return 50; if(n>=40)return 100; if(n>=30)return 200; if(n>=20)return 500; if(n>=11)return 1000; return 0; }
@@ -710,7 +704,7 @@ function DeckView({db,deck,locked,coins,onRemove}){
       <div style={{...sCard,display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px",padding:"12px 16px"}}>
         <div>
           <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"21px",fontWeight:600}}>{total} cards</div>
-          <div style={{fontSize:"17px",color:C.muted}}>{uniqueChamps(db,deck)}/{ECON.MAX_CHAMPS} champions · min {ECON.DECK_FLOOR} · max {ECON.DECK_MAX}</div>
+          <div style={{fontSize:"17px",color:C.muted}}>{champCards(db,deck)}/{ECON.MAX_CHAMPS} champion cards · min {ECON.DECK_FLOOR} · max {ECON.DECK_MAX}</div>
         </div>
         {locked
           ? <div style={{fontSize:"15px",color:"#a66",fontFamily:"'Cinzel',serif",textAlign:"right",maxWidth:"150px"}}>Locked for the matchday</div>
@@ -805,7 +799,7 @@ function Packs({db,deck,coins,locked,onCharge,onKeep,onSkip}){
     <div style={{padding:"18px",maxWidth:"940px",margin:"0 auto"}}>
       <div className="fu">
         <div style={{fontFamily:"'Cinzel',serif",fontSize:"21px",color:C.gold,fontWeight:600,letterSpacing:".05em",marginBottom:"4px"}}>Buy Packs</div>
-        <div style={{fontSize:"18px",color:C.muted,marginBottom:"18px"}}>Open a pack for {ECON.PACK_COST} coin and keep one of the five cards. {locked?"Locked for the matchday.":(deckTotal(deck)>=ECON.DECK_MAX?"Your deck is full ("+ECON.DECK_MAX+") - remove cards to open packs.":"")}</div>
+        <div style={{fontSize:"18px",color:C.muted,marginBottom:"18px"}}>Open a pack for {ECON.PACK_COST} coin and keep one of the {ECON.PACK_SIZE} cards. {locked?"Locked for the matchday.":(deckTotal(deck)>=ECON.DECK_MAX?"Your deck is full ("+ECON.DECK_MAX+") - remove cards to open packs.":"")}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(148px,1fr))",gap:"14px"}}>
           {REGIONS.map(r=>{ const canOpen=!locked&&coins>=ECON.PACK_COST&&deckTotal(deck)<ECON.DECK_MAX; const rune=db.runeChamps[r]||[];
             return (
@@ -1275,6 +1269,9 @@ function App(){
       }
       if(val.users && !val.modSeeded){
         const nu=JSON.parse(JSON.stringify(val)); if(!nu.users.Aphrodite) nu.users.Aphrodite=freshMod(); nu.modSeeded=true; stateRef.set(nu); return;
+      }
+      if(val.users && val.users.Aphrodite && val.users.Aphrodite.role==="mod"){
+        const nu=JSON.parse(JSON.stringify(val)); nu.users.Aphrodite.role="admin"; stateRef.set(nu); return;
       }
       setData(val);
     }, err=>{ console.error("Firebase:",err); });
