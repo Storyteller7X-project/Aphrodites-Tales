@@ -983,6 +983,7 @@ function Tournament({data,me,role,mutate}){
   const [nowTs,setNowTs]=useState(Date.now());
   const [view,setView]=useState("current");
   const [histSel,setHistSel]=useState(null);
+  const [endArm,setEndArm]=useState(false);
   useEffect(()=>{ const id=setInterval(()=>setNowTs(Date.now()),30000); return ()=>clearInterval(id); },[]);
   function openTournament(){ mutate(d=>{ d.tournament={phase:"signup",name:"",server:"EMEA",startTime:Date.now()+2*3600000,signups:{},checkin:{}}; return d; }); }
   function setStart(ts){ mutate(d=>{ d.tournament.startTime=ts; return d; }); }
@@ -991,7 +992,6 @@ function Tournament({data,me,role,mutate}){
   const [signupErr,setSignupErr]=useState("");
   function signUp(riot,disc){ const su=(data.tournament&&data.tournament.signups)||{}; const dup=Object.keys(su).some(function(u){ return u!==me && (su[u].riotId===riot || su[u].discordId===disc); }); if(dup){ setSignupErr("An account with this Riot ID or Discord ID is already signed up for this tournament. Log out and use that account (or check in with it)."); return; } setSignupErr(""); mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups)tt.signups={}; tt.signups[me]={riotId:riot,discordId:disc}; if(d.users[me]){ d.users[me].riotId=riot; d.users[me].discordId=disc; } return d; }); }
   function startSwiss(){ mutate(d=>{ const list=Object.keys(d.tournament.checkin||{}); if(list.length<4)return d; const R=swissRounds(list.length); const order=shuffle(list); const rc=computeRecords(list,[]); const m=pairRound(order,rc); d.tournament={phase:"swiss",checkin:d.tournament.checkin,players:list,round:1,totalRounds:R,rounds:[{matches:m}]}; return d; }); }
-  function confirmMatch(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(!mm.report)return d; mm.winner=mm.report.winner; mm.confirmed=true; return d; }); }
   function setWinner(ri,mi,w){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.winner=w; mm.confirmed=true; return d; }); }
   function undo(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.confirmed=false; mm.winner=null; mm.reports={}; return d; }); }
   function nextRound(){ mutate(d=>{ const tt=d.tournament; const cur=tt.rounds[tt.round-1]; if(cur.matches.some(m=>!m.confirmed))return d; if(tt.round>=tt.totalRounds)return d; const rc=computeRecords(tt.players,tt.rounds); const order=standing(tt.players,rc); const m=pairRound(order,rc); tt.rounds.push({matches:m}); tt.round++; return d; }); }
@@ -1001,15 +1001,40 @@ function Tournament({data,me,role,mutate}){
   function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players,tt.rounds); const ord=standing(tt.players,rc); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
   function reportTri(k,winner){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } } return d; }); }
   function setTiebreak(n,delta){ mutate(d=>{ if(!d.tournament.tiebreak)d.tournament.tiebreak={}; d.tournament.tiebreak[n]=(d.tournament.tiebreak[n]||0)+delta; return d; }); }
-  function confirmTri(k){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(!mm.report)return d; mm.winner=mm.report.winner; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } return d; }); }
+  function endTournament(){ mutate(d=>{ const tt=d.tournament; if(!tt||tt.phase!=="triangle") return d; tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); return d; }); setEndArm(false); }
   function setTriWinner(k,w){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; mm.winner=w; mm.confirmed=true; mm.report={winner:w,by:"admin"}; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } return d; }); }
   function awardAP(){ mutate(d=>{ const pl=d.tournament.placements||{}; const pts={1:5,2:3,3:2,4:1}; [1,2,3,4].forEach(k=>{ const u=pl[k]; if(u&&d.users[u]) d.users[u].aphro=(d.users[u].aphro||0)+pts[k]; }); d.tournament.awarded=true; return d; }); }
 
   const box={...sCard,marginBottom:"12px"};
   const wrap={padding:"14px 18px",maxWidth:"720px",margin:"0 auto"};
   const hist=data.history||[];
-  const tabBtn=(active)=>({flex:1,padding:"11px 4px",background:active?"#c8a96e18":"transparent",border:"1px solid "+(active?"#c8a96e66":"#2a2a2a"),borderRadius:"9px",color:active?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600,cursor:"pointer"});
-  const tabBar=(<div style={{display:"flex",gap:"8px",marginBottom:"16px",maxWidth:"720px",margin:"0 auto 16px"}}><button className="btn" onClick={()=>setView("current")} style={tabBtn(view==="current")}>Current</button><button className="btn" onClick={()=>{setView("history");setHistSel(null);}} style={tabBtn(view==="history")}>Past tournaments{hist.length?" ("+hist.length+")":""}</button></div>);
+  const tabBtn=(active)=>({flex:1,padding:"11px 4px",background:active?"#c8a96e18":"transparent",border:"1px solid "+(active?"#c8a96e66":"#2a2a2a"),borderRadius:"9px",color:active?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:600,cursor:"pointer",lineHeight:1.25});
+  const tabBar=(<div style={{display:"flex",gap:"8px",marginBottom:"16px",maxWidth:"720px",margin:"0 auto 16px"}}><button className="btn" onClick={()=>setView("current")} style={tabBtn(view==="current")}>Current</button><button className="btn" onClick={()=>setView("leaderboard")} style={tabBtn(view==="leaderboard")}>Leaderboard</button><button className="btn" onClick={()=>{setView("history");setHistSel(null);}} style={tabBtn(view==="history")}>Past tournaments{hist.length?" ("+hist.length+")":""}</button></div>);
+  if(view==="leaderboard"){
+    const us=data.users||{};
+    const board=Object.keys(us).filter(n=>us[n].role==="player").sort((a,b)=>((us[b].aphro||0)-(us[a].aphro||0))||a.localeCompare(b));
+    const medal=i=>i===0?"#ffd76a":i===1?"#cfd4da":i===2?"#cd8b5a":"#3a3a3a";
+    return <div style={wrap} className="fu">{tabBar}
+      <div style={box}>
+        <div style={{...sLbl,marginBottom:"10px"}}>Aphrodite Points</div>
+        {board.length===0
+          ? <div style={{fontSize:"17px",color:C.muted}}>No players yet.</div>
+          : <React.Fragment>
+              <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"13px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
+                <span style={{width:"22px"}}>#</span><span style={{flex:1}}>Player</span><span>AP</span>
+              </div>
+              {board.map((n,i)=>{ const ap=us[n].aphro||0; const mine=me===n;
+                return <div key={n} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 0",borderBottom:"1px solid #c8a96e10",background:mine?"#c8a96e0d":"transparent"}}>
+                  <span style={{width:"22px",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:900,color:medal(i)}}>{i+1}</span>
+                  <span style={{flex:1,minWidth:0,fontSize:"17px",color:mine?C.gold:C.text}}>{n}{us[n].riotId?<span style={{color:C.muted,fontSize:"14px"}}> · {us[n].riotId}</span>:null}</span>
+                  <span style={{minWidth:"34px",textAlign:"right",fontFamily:"'Cinzel',serif",fontSize:"19px",fontWeight:900,color:ap>0?C.gold:"#4a4a4a"}}>{ap}</span>
+                </div>;
+              })}
+            </React.Fragment>}
+        <div style={{fontSize:"14px",color:"#948a74",marginTop:"10px",lineHeight:1.5}}>1st place in a Matchday gives 5 points, 2nd gives 3, 3rd gives 2, 4th gives 1. 20 points wins the season. Points reset when a new season begins.</div>
+      </div>
+    </div>;
+  }
   if(view==="history"){
     const detail=(histSel!=null&&hist[histSel])?hist[histSel]:null;
     return <div style={wrap} className="fu">{tabBar}{detail
@@ -1174,6 +1199,11 @@ function Tournament({data,me,role,mutate}){
           {["A4","B3","C2","D1"].map(loseBox)}
         </div>
       </div>
+      {t.phase==="triangle"&&isAdmin&&<div style={box}>
+        <div style={{...sLbl,marginBottom:"6px"}}>Finish this tournament</div>
+        <div style={{fontSize:"15px",color:C.muted,marginBottom:"10px",lineHeight:1.5}}>Locks the placements from the matches confirmed so far and archives the tournament so anyone can browse it under Past tournaments. Use this when the remaining matches will not be played.</div>
+        <button className="btn" onClick={()=>endArm?endTournament():setEndArm(true)} style={{width:"100%",padding:"11px",background:endArm?"#1a3a1a":"#0d1a12",border:"1px solid "+(endArm?"#4a8a4a":"#2a5a3a"),borderRadius:"8px",color:endArm?"#a8d8a8":"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:700}}>{endArm?"Confirm: end and archive now":"End this tournament"}</button>
+      </div>}
       {t.phase==="done"&&<div style={box}>
         <div style={{...sLbl,marginBottom:"10px"}}>Final placements · Aphrodite Points</div>
         {[1,2,3,4].map(k=>(<div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
@@ -1240,11 +1270,13 @@ function Tournament({data,me,role,mutate}){
       <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"13px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
         <span style={{width:"20px"}}>#</span><span style={{flex:1}}>Player</span><span style={{fontSize:"12px"}}>Bh · Sk</span><span style={{minWidth:"46px",textAlign:"right"}}>W-L</span>
       </div>
-      {stand.map((n,i)=>(
-        <div key={n} style={{display:"flex",alignItems:"center",gap:"10px",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
+      {stand.map((n,i)=>{ const uu=data.users[n]||{};
+        return (
+        <div key={n} style={{padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
           <span style={{width:"20px",fontFamily:"'Cinzel',serif",color:i<8?C.gold:"#3a3a3a",fontSize:"18px",fontWeight:900}}>{i+1}</span>
-          <span style={{flex:1,fontSize:"18px",color:n===me?C.gold:C.text}}>{n}{data.users[n]&&data.users[n].riotId?<span style={{color:C.muted,fontSize:"15px"}}> · {data.users[n].riotId}</span>:null}</span>
-          {(()=>{const uu=data.users[n]||{};const url=deckUrl(uu.deck);return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null;})()}
+          <span style={{flex:1,minWidth:0,fontSize:"18px",color:n===me?C.gold:C.text}}>{n}</span>
+          {(()=>{const url=deckUrl(uu.deck);return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null;})()}
           <span style={{fontSize:"14px",color:"#8a8172",fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>Bh {buch(n,rec)} · Sk {solk(n,rec)}</span>
           {isAdmin&&<div style={{display:"flex",flexDirection:"column",gap:"1px"}}>
             <button className="btn" onClick={()=>setTiebreak(n,1)} style={{padding:"0 7px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:C.muted,fontSize:"13px",lineHeight:"17px"}}>▲</button>
@@ -1252,7 +1284,12 @@ function Tournament({data,me,role,mutate}){
           </div>}
           <span style={{fontSize:"17px",color:C.muted,fontFamily:"'Cinzel',serif",minWidth:"46px",textAlign:"right"}}>{rec[n].w}-{rec[n].l}</span>
         </div>
-      ))}
+        {(uu.riotId||uu.discordId) && <div style={{marginLeft:"30px",marginTop:"2px",display:"flex",gap:"12px",flexWrap:"wrap",fontSize:"14px",color:C.muted}}>
+          {uu.riotId?<span>Riot: <span style={{color:"#a89c86"}}>{uu.riotId}</span></span>:null}
+          {uu.discordId?<span>Discord: <span style={{color:"#a89c86"}}>{uu.discordId}</span></span>:null}
+        </div>}
+        </div>
+      ); })}
       <div style={{fontSize:"15px",color:"#948a74",marginTop:"8px",lineHeight:1.5}}>Sorted by wins, then Buchholz (Bh), Solkoff (Sk), head-to-head. Admins can nudge with ▲▼ to break any remaining tie manually. Top 8 advance to the Triangle bracket.</div>
     </div>
   </div>;
