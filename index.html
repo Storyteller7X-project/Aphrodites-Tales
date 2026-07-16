@@ -430,6 +430,7 @@ function AdminHome({data,mutate,me,db}){
             <div style={{fontSize:"15px",color:C.muted,marginBottom:"10px",lineHeight:1.5}}>Download a full spreadsheet: pack opens with picks/skips, card pick rates, store purchases, card removals, check-ins, starter picks, finishes and deck history per week.</div>
             <button className="btn" onClick={exportStats} style={{width:"100%",padding:"11px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Export statistics (.xlsx)</button>
           </div>
+          <Leaderboard data={data} me={me}/>
         </React.Fragment>
       )}
 
@@ -517,11 +518,12 @@ function PlayerHome({data,me,db,starters,mutate}){
     <div>
       {locked && <div style={{background:"#1a1400",borderBottom:"1px solid #c8a96e33",padding:"7px",textAlign:"center",fontFamily:"'Cinzel',serif",fontSize:"16px",color:C.gold}}>Prep Time is over. Your deck is locked for the matchday.</div>}
       <div style={{display:"flex",background:"#090b12",borderBottom:"1px solid #c8a96e1a",position:"sticky",top:0,zIndex:40}}>
-        {tb("deck","My Deck")}{tb("store","Store")}{tb("packs","Buy Packs")}{tb("decks","Competitors")}{tb("tourney","Tournament")}
+        {tb("deck","My Deck")}{tb("store","Store")}{tb("packs","Buy Packs")}{tb("decks","Competitors")}{tb("board","Leaderboard")}{tb("tourney","Tournament")}
       </div>
       {tab==="deck" && <DeckView db={db} deck={deck} locked={locked} coins={coins} onRemove={removeCards}/>}
       {tab==="store" && <Store db={db} deck={deck} coins={coins} locked={locked} onBuy={buyCard}/>}
       {tab==="packs" && <Packs db={db} deck={deck} coins={coins} locked={locked} onCharge={chargePack} onKeep={keepPack} onSkip={skipPack}/>}
+      {tab==="board" && <div style={{padding:"14px 18px",maxWidth:"720px",margin:"0 auto"}} className="fu"><Leaderboard data={data} me={me}/></div>}
       {tab==="tourney" && <Tournament data={data} me={me} role="player" mutate={mutate}/>}
       {tab==="decks" && <div style={{padding:"14px 18px",maxWidth:"720px",margin:"0 auto"}} className="fu">
         <div style={{...sCard,marginBottom:"12px"}}>
@@ -545,8 +547,32 @@ function PlayerHome({data,me,db,starters,mutate}){
 /* ============================================================
    SPECTATOR (foundation)
    ============================================================ */
+function Leaderboard({data,me}){
+  const us=data.users||{};
+  const board=Object.keys(us).filter(n=>us[n].role==="player").sort((a,b)=>((us[b].aphro||0)-(us[a].aphro||0))||a.localeCompare(b));
+  const medal=i=>i===0?"#ffd76a":i===1?"#cfd4da":i===2?"#cd8b5a":"#3a3a3a";
+  return (
+    <div style={sCard}>
+      <div style={{...sLbl,marginBottom:"10px"}}>Leaderboard · Aphrodite Points</div>
+      {board.length===0
+        ? <div style={{fontSize:"17px",color:C.muted}}>No players yet.</div>
+        : <React.Fragment>
+            <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"13px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
+              <span style={{width:"22px"}}>#</span><span style={{flex:1}}>Player</span><span>AP</span>
+            </div>
+            {board.map((n,i)=>{ const ap=us[n].aphro||0; const mine=me===n;
+              return <div key={n} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 0",borderBottom:"1px solid #c8a96e10",background:mine?"#c8a96e0d":"transparent"}}>
+                <span style={{width:"22px",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:900,color:medal(i)}}>{i+1}</span>
+                <span style={{flex:1,minWidth:0,fontSize:"17px",color:mine?C.gold:C.text}}>{n}{us[n].riotId?<span style={{color:C.muted,fontSize:"14px"}}> · {us[n].riotId}</span>:null}</span>
+                <span style={{minWidth:"34px",textAlign:"right",fontFamily:"'Cinzel',serif",fontSize:"19px",fontWeight:900,color:ap>0?C.gold:"#4a4a4a"}}>{ap}</span>
+              </div>;
+            })}
+          </React.Fragment>}
+      <div style={{fontSize:"14px",color:"#948a74",marginTop:"10px",lineHeight:1.5}}>1st place in a Matchday gives 5 points, 2nd gives 3, 3rd gives 2, 4th gives 1. 20 points wins the season. Points reset when a new season begins.</div>
+    </div>
+  );
+}
 function Spectator({data,onLeave}){
-  const players=Object.keys(data.users||{}).filter(n=>data.users[n].role==="player");
   return (
     <div style={{minHeight:"100vh"}}>
       <div style={{background:"#090b13",borderBottom:"1px solid #c8a96e1a",padding:"10px 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -554,14 +580,7 @@ function Spectator({data,onLeave}){
         <button className="btn" onClick={onLeave} style={{padding:"5px 10px",background:"transparent",border:"1px solid #333",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Leave</button>
       </div>
       <div style={{padding:"14px 18px",maxWidth:"640px",margin:"0 auto"}} className="fu">
-        <div style={{...sLbl,marginBottom:"10px"}}>Competitors ({players.length})</div>
-        {players.length===0 && <div style={{...sCard,textAlign:"center",color:C.muted,fontSize:"18px"}}>No players yet.</div>}
-        {players.map(n=>(
-          <div key={n} style={{...sCard,padding:"11px 14px",marginBottom:"8px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontSize:"18px",color:C.text}}>{n}</div>
-            <div style={{fontSize:"17px",color:C.muted}}>{(data.users[n].aphro||0)} AP</div>
-          </div>
-        ))}
+        <Leaderboard data={data} me={null}/>
         <Tournament data={data} me={null} role="spectator" mutate={()=>{}}/>
       </div>
     </div>
@@ -1009,32 +1028,7 @@ function Tournament({data,me,role,mutate}){
   const wrap={padding:"14px 18px",maxWidth:"720px",margin:"0 auto"};
   const hist=data.history||[];
   const tabBtn=(active)=>({flex:1,padding:"11px 4px",background:active?"#c8a96e18":"transparent",border:"1px solid "+(active?"#c8a96e66":"#2a2a2a"),borderRadius:"9px",color:active?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:600,cursor:"pointer",lineHeight:1.25});
-  const tabBar=(<div style={{display:"flex",gap:"8px",marginBottom:"16px",maxWidth:"720px",margin:"0 auto 16px"}}><button className="btn" onClick={()=>setView("current")} style={tabBtn(view==="current")}>Current</button><button className="btn" onClick={()=>setView("leaderboard")} style={tabBtn(view==="leaderboard")}>Leaderboard</button><button className="btn" onClick={()=>{setView("history");setHistSel(null);}} style={tabBtn(view==="history")}>Past tournaments{hist.length?" ("+hist.length+")":""}</button></div>);
-  if(view==="leaderboard"){
-    const us=data.users||{};
-    const board=Object.keys(us).filter(n=>us[n].role==="player").sort((a,b)=>((us[b].aphro||0)-(us[a].aphro||0))||a.localeCompare(b));
-    const medal=i=>i===0?"#ffd76a":i===1?"#cfd4da":i===2?"#cd8b5a":"#3a3a3a";
-    return <div style={wrap} className="fu">{tabBar}
-      <div style={box}>
-        <div style={{...sLbl,marginBottom:"10px"}}>Aphrodite Points</div>
-        {board.length===0
-          ? <div style={{fontSize:"17px",color:C.muted}}>No players yet.</div>
-          : <React.Fragment>
-              <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"13px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
-                <span style={{width:"22px"}}>#</span><span style={{flex:1}}>Player</span><span>AP</span>
-              </div>
-              {board.map((n,i)=>{ const ap=us[n].aphro||0; const mine=me===n;
-                return <div key={n} style={{display:"flex",alignItems:"center",gap:"10px",padding:"8px 0",borderBottom:"1px solid #c8a96e10",background:mine?"#c8a96e0d":"transparent"}}>
-                  <span style={{width:"22px",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:900,color:medal(i)}}>{i+1}</span>
-                  <span style={{flex:1,minWidth:0,fontSize:"17px",color:mine?C.gold:C.text}}>{n}{us[n].riotId?<span style={{color:C.muted,fontSize:"14px"}}> · {us[n].riotId}</span>:null}</span>
-                  <span style={{minWidth:"34px",textAlign:"right",fontFamily:"'Cinzel',serif",fontSize:"19px",fontWeight:900,color:ap>0?C.gold:"#4a4a4a"}}>{ap}</span>
-                </div>;
-              })}
-            </React.Fragment>}
-        <div style={{fontSize:"14px",color:"#948a74",marginTop:"10px",lineHeight:1.5}}>1st place in a Matchday gives 5 points, 2nd gives 3, 3rd gives 2, 4th gives 1. 20 points wins the season. Points reset when a new season begins.</div>
-      </div>
-    </div>;
-  }
+  const tabBar=(<div style={{display:"flex",gap:"8px",marginBottom:"16px",maxWidth:"720px",margin:"0 auto 16px"}}><button className="btn" onClick={()=>setView("current")} style={tabBtn(view==="current")}>Current</button><button className="btn" onClick={()=>{setView("history");setHistSel(null);}} style={tabBtn(view==="history")}>Past tournaments{hist.length?" ("+hist.length+")":""}</button></div>);
   if(view==="history"){
     const detail=(histSel!=null&&hist[histSel])?hist[histSel]:null;
     return <div style={wrap} className="fu">{tabBar}{detail
