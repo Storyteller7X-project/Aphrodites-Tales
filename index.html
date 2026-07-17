@@ -232,7 +232,7 @@ function Login({data,onLogin,onSpectator,onRegister,onRequestReset}){
           <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:C.muted,letterSpacing:".3em"}}>POWERED BY STORYTELLER</span>
           <span style={{height:"1px",width:"56px",background:"linear-gradient(90deg,#c8a96e99,transparent)"}}/>
         </div>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#948a74",letterSpacing:".25em",marginTop:"7px"}}>v. 0.1.0</div>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#948a74",letterSpacing:".25em",marginTop:"7px"}}>v. 0.1</div>
       </div>
       <div className="fu" style={{width:"100%",maxWidth:"400px",display:"flex",flexDirection:"column",gap:"13px"}}>
         {mode==="login" ? (
@@ -297,7 +297,7 @@ function TopBar({me,role,coins,onLogout,changePw}){
       <div>
         <div style={{display:"flex",alignItems:"baseline",gap:"8px"}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:"25px",fontWeight:900,letterSpacing:".14em",background:"linear-gradient(180deg,#f2dca0,#c8a96e 58%,#96703c)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>APHRODITE'S TALES</div>
-          <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#9e9478"}}>v. 0.1.0</span>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#9e9478"}}>v. 0.1</span>
         </div>
         <div style={{fontSize:"17px",color:C.muted,marginTop:"2px"}}>{me}{role==="admin"?" · Admin":role==="mod"?" · Mod":""}</div>
       </div>
@@ -348,15 +348,19 @@ function AdminHome({data,mutate,me,db}){
   const [msg,setMsg]=useState("");
   const [delArm,setDelArm]=useState("");
   const [seasonArm,setSeasonArm]=useState(false);
+  const [swEdit,setSwEdit]=useState(false);
+  const [swS,setSwS]=useState("");
+  const [swW,setSwW]=useState("");
   const [shownPw,setShownPw]=useState(null);
   const pending=Object.keys(data.pending||{});
   const isFullAdmin=!!(data.users[me]&&data.users[me].role==="admin");
   const seasonPhase=data.seasonPhase||(data.prepEnded?"locked":"building");
-  const players=Object.keys(data.users||{}).filter(n=>data.users[n].role==="player"||data.users[n].role==="mod");
+  const players=Object.keys(data.users||{}).filter(n=>n!==me);
 
   function setPhase(p){ mutate(d=>{ d.seasonPhase=p; d.prepEnded=(p!=="building"); if(p==="locked"){ const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"&&us[n].deck&&us[n].deck.length){ logStat(d,"deckLocks",{a:n,wk:d.week||1,deck:encodeDeck(us[n].deck),size:deckTotal(us[n].deck),t:Date.now()}); } }); } return d; }); }
   function newWeek(){ mutate(d=>{ d.week=(d.week||1)+1; d.prepEnded=false; d.seasonPhase="building"; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player") us[n].coins=(us[n].coins||0)+100; }); return d; }); setMsg("New week started. +100 coins to all players."); }
   function delPlayer(n){ if(n===OWNER){ setDelArm(""); setMsg("The "+OWNER+" account cannot be deleted."); return; } mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
+  function saveSW(){ const s=parseInt(swS,10), w=parseInt(swW,10); if(!(s>=1)||!(w>=1)){ setMsg("Season and week must be 1 or higher."); return; } mutate(d=>{ d.season=s; d.week=w; return d; }); setSwEdit(false); setMsg("Season "+s+", week "+w+" set."); }
   function resetSeason(){ mutate(d=>{ const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"){ us[n].starter=null; us[n].deck=null; us[n].coins=100; us[n].aphro=0; } }); d.season=(d.season||1)+1; d.week=1; d.prepEnded=false; d.seasonPhase="building"; d.tournament={phase:"idle"}; return d; }); setSeasonArm(false); setMsg("Season reset. All players are back to starter deck choice."); }
   function exportStats(){
     const X=window.XLSX; if(!X){ setMsg("Spreadsheet tool is still loading, try again in a moment."); return; }
@@ -412,7 +416,19 @@ function AdminHome({data,mutate,me,db}){
       {atab==="home" && (
         <React.Fragment>
           <div style={sCard}>
-            <div style={{...sLbl,marginBottom:"6px"}}>Season {data.season||1} · Week {data.week||1}</div>
+            {swEdit
+              ? <div style={{display:"flex",alignItems:"center",gap:"7px",flexWrap:"wrap",marginBottom:"8px"}}>
+                  <span style={{...sLbl}}>Season</span>
+                  <input value={swS} onChange={e=>setSwS(e.target.value.replace(/[^0-9]/g,""))} style={{width:"52px",background:"#0d0f18",border:"1px solid #333",borderRadius:"6px",padding:"5px 7px",color:"#e8d5b0",fontSize:"15px",outline:"none"}}/>
+                  <span style={{...sLbl}}>Week</span>
+                  <input value={swW} onChange={e=>setSwW(e.target.value.replace(/[^0-9]/g,""))} style={{width:"52px",background:"#0d0f18",border:"1px solid #333",borderRadius:"6px",padding:"5px 7px",color:"#e8d5b0",fontSize:"15px",outline:"none"}}/>
+                  <button className="btn" onClick={saveSW} style={{padding:"5px 11px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"6px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"14px"}}>Save</button>
+                  <button className="btn" onClick={()=>setSwEdit(false)} style={{padding:"5px 9px",background:"transparent",border:"1px solid #333",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px"}}>Cancel</button>
+                </div>
+              : <div style={{display:"flex",alignItems:"center",gap:"9px",marginBottom:"6px"}}>
+                  <span style={{...sLbl}}>Season {data.season||1} · Week {data.week||1}</span>
+                  <button className="btn" onClick={()=>{setSwEdit(true);setSwS(String(data.season||1));setSwW(String(data.week||1));setMsg("");}} style={{padding:"3px 9px",background:"transparent",border:"1px solid #c8a96e33",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"13px"}}>edit</button>
+                </div>}
             <div style={{fontSize:"17px",color:C.muted,marginBottom:"12px",lineHeight:1.6}}>Current phase: <strong style={{color:C.gold}}>{seasonPhase==="building"?"Deck building":seasonPhase==="locked"?"Deck lock":"Matchday"}</strong>. {seasonPhase==="building"?"Players build decks (buy, packs, remove) and cannot see other players' decks yet.":seasonPhase==="locked"?"Decks are locked. Players can now view everyone's decks and wait for the tournament.":"Players play with their locked decks and can view all decks. No editing until you reopen deck building."}</div>
             <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"8px"}}>
               {seasonPhase==="building" && <button className="btn" onClick={()=>setPhase("locked")} style={{flex:1,minWidth:"150px",padding:"9px",background:"#1a1400",border:"1px solid #c8a96e55",borderRadius:"8px",color:C.gold,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Lock decks (start Deck lock)</button>}
@@ -458,7 +474,7 @@ function AdminHome({data,mutate,me,db}){
                 <div key={n} style={{padding:"11px 0",borderBottom:"1px solid #c8a96e10"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
                     <div style={{minWidth:0}}>
-                      <div style={{fontSize:"18px",color:C.text}}>{n}{u.role==="mod"?<span style={{color:C.gold,fontSize:"14px",fontFamily:"'Cinzel',serif"}}> · mod</span>:null}{u.riotId?<span style={{color:C.muted,fontSize:"15px"}}> · {u.riotId}</span>:null}</div>
+                      <div style={{fontSize:"18px",color:C.text}}>{n}{u.role==="admin"?<span style={{color:C.gold,fontSize:"14px",fontFamily:"'Cinzel',serif"}}> · admin</span>:u.role==="mod"?<span style={{color:C.gold,fontSize:"14px",fontFamily:"'Cinzel',serif"}}> · mod</span>:null}{u.riotId?<span style={{color:C.muted,fontSize:"15px"}}> · {u.riotId}</span>:null}</div>
                       <div style={{fontSize:"16px",color:C.muted}}>{u.coins||0} coins · {u.aphro||0} AP · {u.starter?("deck: "+u.starter):"no deck"}</div>
                       {shownPw&&shownPw.n===n&&<div style={{marginTop:"6px",fontSize:"15px",color:"#9cf"}}>New password: <strong style={{fontFamily:"monospace",fontSize:"18px",color:"#cef"}}>{shownPw.pw}</strong> (send it to them)</div>}
                     </div>
@@ -467,9 +483,9 @@ function AdminHome({data,mutate,me,db}){
                       <CoinGrant onGive={amt=>grant(n,amt)}/>
                       <APGrant onGive={amt=>apGrant(n,amt)}/>
                       <button className="btn" onClick={()=>resetPw(n)} style={{flexShrink:0,padding:"6px 10px",background:"transparent",border:"1px solid #3a4a5a",borderRadius:"6px",color:"#8aa",fontFamily:"'Cinzel',serif",fontSize:"14px"}}>reset pw</button>
-                      {delArm===n
+                      {n!==OWNER && (delArm===n
                         ? <button className="btn" onClick={()=>delPlayer(n)} style={{flexShrink:0,padding:"6px 10px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"15px",fontWeight:700}}>Confirm</button>
-                        : <button className="btn" onClick={()=>setDelArm(n)} style={{flexShrink:0,padding:"6px 10px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Delete</button>}
+                        : <button className="btn" onClick={()=>setDelArm(n)} style={{flexShrink:0,padding:"6px 10px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Delete</button>)}
                     </div>
                   </div>
                 </div>
@@ -711,6 +727,7 @@ function StarterSelect({starters,db,onPick}){
 }
 
 function DeckView({db,deck,locked,coins,onRemove}){
+  const [copied,setCopied]=useState(false);
   const [sellMode,setSellMode]=useState(false);
   const [sel,setSel]=useState({});
   const total=deckTotal(deck), batch=removalBatch(total), cost=removalCost(total);
@@ -744,6 +761,14 @@ function DeckView({db,deck,locked,coins,onRemove}){
         <div>
           <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"21px",fontWeight:600}}>{total} cards</div>
           <div style={{fontSize:"17px",color:C.muted}}>{champCards(db,deck)}/{ECON.MAX_CHAMPS} champion cards · min {ECON.DECK_FLOOR} · max {ECON.DECK_MAX}</div>
+          {total>0 && <div style={{display:"flex",gap:"8px",marginTop:"9px",flexWrap:"wrap"}}>
+            <a href={deckUrl(deck)||"#"} target="_blank" rel="noopener noreferrer" style={{padding:"6px 11px",background:"#0d1a2a",border:"1px solid #334466",borderRadius:"7px",color:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"15px",textDecoration:"none"}}>View your deck ↗</a>
+            <button className="btn" onClick={()=>{ const code=encodeDeck(deck); if(!code)return;
+              const done=()=>{ setCopied(true); setTimeout(()=>setCopied(false),1600); };
+              if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(code).then(done).catch(()=>{ fallbackCopy(code); done(); }); }
+              else { fallbackCopy(code); done(); }
+            }} style={{padding:"6px 11px",background:copied?"#0d1a12":"#1a1400",border:"1px solid "+(copied?"#2a5a3a":"#c8a96e44"),borderRadius:"7px",color:copied?"#6ac68a":C.gold,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{copied?"Copied":"Copy deck code"}</button>
+          </div>}
         </div>
         {locked
           ? <div style={{fontSize:"15px",color:"#a66",fontFamily:"'Cinzel',serif",textAlign:"right",maxWidth:"150px"}}>Locked for the matchday</div>
@@ -967,6 +992,7 @@ function encodeDeck(cards){
   P.filter(x=>x.count>3).sort((a,b)=>a.code.localeCompare(b.code)).forEach(x=>{ wv(x.count); wv(x.set); wv(F2ID[x.fac]); wv(x.num); });
   return b32enc(out);
 }
+function fallbackCopy(text){ try{ const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); }catch(e){} }
 function deckUrl(deck){ const c=encodeDeck(deck||[]); return c?("https://runeterra.ar/decks/code/"+c):null; }
 
 function TournamentNameInput({name,onSet}){ const [v,setV]=useState(name||""); return <input value={v} onChange={e=>{setV(e.target.value);onSet(e.target.value);}} placeholder="Tournament name" style={{...sInp,fontSize:"18px",width:"100%"}}/>; }
@@ -1003,6 +1029,7 @@ function Tournament({data,me,role,mutate}){
   const [view,setView]=useState("current");
   const [histSel,setHistSel]=useState(null);
   const [endArm,setEndArm]=useState(false);
+  const [delHistArm,setDelHistArm]=useState(null);
   useEffect(()=>{ const id=setInterval(()=>setNowTs(Date.now()),30000); return ()=>clearInterval(id); },[]);
   function openTournament(){ mutate(d=>{ d.tournament={phase:"signup",name:"",server:"EMEA",startTime:Date.now()+2*3600000,signups:{},checkin:{}}; return d; }); }
   function setStart(ts){ mutate(d=>{ d.tournament.startTime=ts; return d; }); }
@@ -1020,6 +1047,7 @@ function Tournament({data,me,role,mutate}){
   function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players,tt.rounds); const ord=standing(tt.players,rc); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
   function reportTri(k,winner){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } } return d; }); }
   function setTiebreak(n,delta){ mutate(d=>{ if(!d.tournament.tiebreak)d.tournament.tiebreak={}; d.tournament.tiebreak[n]=(d.tournament.tiebreak[n]||0)+delta; return d; }); }
+  function delHist(i){ mutate(d=>{ if(d.history) d.history.splice(i,1); return d; }); setDelHistArm(null); setHistSel(null); }
   function endTournament(){ mutate(d=>{ const tt=d.tournament; if(!tt||tt.phase!=="triangle") return d; tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); return d; }); setEndArm(false); }
   function setTriWinner(k,w){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; mm.winner=w; mm.confirmed=true; mm.report={winner:w,by:"admin"}; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } return d; }); }
   function awardAP(){ mutate(d=>{ const pl=d.tournament.placements||{}; const pts={1:5,2:3,3:2,4:1}; [1,2,3,4].forEach(k=>{ const u=pl[k]; if(u&&d.users[u]) d.users[u].aphro=(d.users[u].aphro||0)+pts[k]; }); d.tournament.awarded=true; return d; }); }
@@ -1060,7 +1088,12 @@ function Tournament({data,me,role,mutate}){
                 <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"18px"}}>{h.champion||"-"} <span style={{color:C.muted,fontSize:"14px",fontWeight:400}}>champion</span></div>
                 <div style={{fontSize:"14px",color:C.muted}}>{h.name?h.name+" · ":""}{new Date(h.date).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric"})}{h.server?" · "+h.server:""} · {(h.standings||[]).length} players</div>
               </div>
-              <span style={{color:C.muted,fontSize:"22px"}}>›</span>
+              <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                {isAdmin && (delHistArm===i
+                  ? <button className="btn" onClick={e=>{e.stopPropagation();delHist(i);}} style={{padding:"5px 10px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:700}}>Confirm delete</button>
+                  : <button className="btn" onClick={e=>{e.stopPropagation();setDelHistArm(i);}} style={{padding:"5px 10px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"14px"}}>Delete</button>)}
+                <span style={{color:C.muted,fontSize:"22px"}}>›</span>
+              </div>
             </div>
           ))}
         </React.Fragment>
