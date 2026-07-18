@@ -652,7 +652,7 @@ function PlayerHome({data,me,db,starters,mutate}){
         <div style={{...sCard,marginBottom:"12px"}}>
           <div style={{...sLbl,marginBottom:"6px"}}>Other players' decks</div>
           {canViewOthers
-            ? <div style={{fontSize:"16px",color:C.muted,lineHeight:1.5}}>Decks are locked, so everyone's current deck is visible. Tap "view deck" to open any player's deck on runeterra.ar.</div>
+            ? <div style={{fontSize:"16px",color:C.muted,lineHeight:1.5}}>Decks are locked, so everyone's current deck is visible. Tap "view deck" to open any player's deck on lor.gg.</div>
             : <div style={{fontSize:"16px",color:"#e0b040",lineHeight:1.5}}>Other players' decks unlock once the deck-building phase ends (Deck lock). Right now everyone is still building.</div>}
         </div>
         {canViewOthers && Object.keys(data.users).filter(n=>data.users[n].role==="player"&&n!==me&&data.users[n].starter).map(n=>{ const u=data.users[n]; const url=deckUrl(u.deck);
@@ -1110,7 +1110,7 @@ function encodeDeck(cards){
   return b32enc(out);
 }
 function fallbackCopy(text){ try{ const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); }catch(e){} }
-function deckUrl(deck){ const c=encodeDeck(deck||[]); return c?("https://runeterra.ar/decks/code/"+c):null; }
+function deckUrl(deck){ const c=encodeDeck(deck||[]); return c?("https://lor.gg/en/deck/"+c):null; }
 
 function TournamentNameInput({name,onSet}){ const [v,setV]=useState(name||""); return <input value={v} onChange={e=>{setV(e.target.value);onSet(e.target.value);}} placeholder="Tournament name" style={{...sInp,fontSize:"18px",width:"100%"}}/>; }
 function toLocalDT(ts){ const off=new Date(ts).getTimezoneOffset()*60000; return new Date(ts-off).toISOString().slice(0,16); }
@@ -1191,7 +1191,7 @@ function Tournament({data,me,role,mutate}){
               <div key={i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
                 <span style={{width:"22px",fontFamily:"'Cinzel',serif",color:i<4?C.gold:"#3a3a3a",fontSize:"17px",fontWeight:900}}>{i+1}</span>
                 <span style={{flex:1,fontSize:"17px",color:C.text}}>{p.name}{p.riotId?<span style={{color:C.muted,fontSize:"14px"}}> · {p.riotId}</span>:null}</span>
-                {p.deck?<a href={"https://runeterra.ar/decks/code/"+p.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}
+                {p.deck?<a href={"https://lor.gg/en/deck/"+p.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}
                 <span style={{fontSize:"16px",color:C.muted,fontFamily:"'Cinzel',serif"}}>{p.w}-{p.l}</span>
               </div>
             ))}
