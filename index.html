@@ -61,6 +61,7 @@
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/exceljs@4.4.0/dist/exceljs.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -363,8 +364,8 @@ function AdminHome({data,mutate,me,db,starters}){
   function delPlayer(n){ if(n===OWNER){ setDelArm(""); setMsg("The "+OWNER+" account cannot be deleted."); return; } mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
   function saveSW(){ const s=parseInt(swS,10), w=parseInt(swW,10); if(!(s>=1)||!(w>=1)){ setMsg("Season and week must be 1 or higher."); return; } mutate(d=>{ d.season=s; d.week=w; return d; }); setSwEdit(false); setMsg("Season "+s+", week "+w+" set."); }
   function resetSeason(){ mutate(d=>{ d.season=(d.season||1)+1; d.week=1; d.prepEnded=false; d.seasonPhase="building"; d.tournament={phase:"idle"}; const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"){ const old=us[n].coins||0; us[n].starter=null; us[n].deck=null; us[n].coins=100; us[n].aphro=0; logCoin(d,n,100-old,"seasonreset"); } }); return d; }); setSeasonArm(false); setMsg("Season reset. All players are back to starter deck choice."); }
-  function exportStats(target,dateLabel){
-    const X=window.XLSX; if(!X){ setMsg("Spreadsheet tool is still loading, try again in a moment."); return; }
+  async function exportStats(target,dateLabel){
+    const ExcelJS=window.ExcelJS; if(!ExcelJS){ setMsg("Spreadsheet tool is still loading, try again in a moment."); return; }
     const S=data.stats||{}; const users=data.users||{}; const hist=data.history||[];
     const stArr=starters||[];
     const starterId=name=>{ const i=stArr.findIndex(s=>s.name===name); return i>=0?i+1:""; };
@@ -386,12 +387,26 @@ function AdminHome({data,mutate,me,db,starters}){
     const expandRemoved=r=>{ const out=[]; Object.keys(r||{}).forEach(c=>{ for(let i=0;i<(r[c]||0);i++) out.push(c); }); return out; };
     const apFor=p=>p===1?5:p===2?3:p===3?2:p===4?1:0;
     const players=Object.keys(users).filter(n=>users[n].role==="player").sort();
-    const wb=X.utils.book_new();
-    const add=(name,aoa)=>{ X.utils.book_append_sheet(wb,X.utils.aoa_to_sheet(aoa),name); };
+    const wb=new ExcelJS.Workbook();
+    const add=(name,aoa)=>{
+      const ws=wb.addWorksheet(name,{views:[{state:"frozen",ySplit:1}]});
+      aoa.forEach(r=>ws.addRow(r));
+      const ncol=(aoa[0]||[]).length;
+      for(let c=0;c<ncol;c++){
+        let w=8; for(let r=0;r<aoa.length;r++){ const v=aoa[r][c]; const len=(v==null?"":String(v)).length; if(len>w)w=len; }
+        ws.getColumn(c+1).width=Math.min(60,w+2);
+      }
+      const hdr=ws.getRow(1);
+      hdr.font={bold:true,color:{argb:"FFFFFFFF"}};
+      hdr.alignment={vertical:"middle",horizontal:"center",wrapText:false};
+      hdr.height=20;
+      for(let c=1;c<=ncol;c++){ hdr.getCell(c).fill={type:"pattern",pattern:"solid",fgColor:{argb:"FF2A5A3A"}}; }
+      ws.autoFilter={from:{row:1,column:1},to:{row:1,column:ncol}};
+    };
     const seasonsList = target!=null ? [tS] : Array.from(new Set((S.config||[]).map(e=>e.s).concat([data.season||1]))).sort((a,b)=>a-b);
 
     // 1) Player Season Summary
-    const t1=[["Season","Player ID","Account ID","Account Name","Player Name","Starter ID","Registration Week","Total Packs opened","Total Cards picked","Total value of all cards picked","Mean value of all cards picked","Median value of all cards picked","Total cards skipped","Total value of all cards skipped","Mean value of all cards skipped","Median value of all cards skipped","Total cards bought from Store","Total value of all cards bought from Store","Mean value of all cards bought from Store","Median value of all cards bought from Store","Total removals bought","Total coins spent on removal","Mean coins spent on removal","Median coins spent on removal","Total Cards removed","Mean cards removed per removal pack","Median cards removed per removal pack","Total value of all cards removed","Mean value of all cards removed","Median value of all cards removed","Check-Ins","Matchday Top4's","Matchday Wins","Aphrodite Points","Final Placement"]];
+    const t1=[["Season","Player ID","Account ID","Account Name","Player Name","Starter ID","Registration Week","Total Packs oepened","Total Cards picked","Total value of all cards picked","Mean value of all cards picked","Median value of all cards picked","Total cards skipped","Total value of all cards skipped","Mean value of all cards skipped","Median value of all cards skipped","Total cards bought form Store","Total value of all cards bought form Store","Mean value of all cards bought form Store","Median value of all cards bought form Store","Total removals bought","Total coins spent on removal","Mean coins spent on removal","Median coins spent on removal","Total Cards removed","Mean cards removed per removal pack","Median cards removed per removal pack","Total value of all cards removed","Mean value of all cards removed","Median value of all cards removed","Check-Ins","Matchday Top4's","Matchday Wins","Aphrodite Points","Final Placement"]];
     seasonsList.forEach(sea=>{ players.forEach(n=>{
       const pk=(S.packs||[]).filter(e=>e.a===n&&(e.s||1)===sea);
       const picked=pk.filter(e=>e.pick).map(e=>cost(e.pick));
@@ -491,12 +506,17 @@ function AdminHome({data,mutate,me,db,starters}){
 
     // 12) Card Reference + pick rate
     const off={},pic={}; (S.packs||[]).filter(inSeason).forEach(e=>{ const all=(e.pick?[e.pick]:[]).concat(e.skip||[]); all.forEach(c=>off[c]=(off[c]||0)+1); if(e.pick)pic[e.pick]=(pic[e.pick]||0)+1; });
-    const t12=[["Card ID","Name","Mana","Rarity","Region(s)","Coin cost","Category","Times offered","Times picked","Times skipped","Pick %"]];
+    const t12=[["Card ID","Name","Cost","Rarity","Region(s)","Cost","Category","Times offered","Times picked","Times skipped","Pick %"]];
     (db&&db.list?db.list:[]).forEach(c=>{ const o=off[c[0]]||0,p=pic[c[0]]||0; t12.push([c[0],c[1],c[2],(c[4]===1?"Champion":["Common","Rare","Epic","Champion"][c[3]]||""),(c[5]||[]).join(", "),c[6],c[7]||"",o,p,o-p,o?Math.round(p/o*100)+"%":""]); });
     add("Card Reference",t12);
 
     const fname = dateLabel ? ("aphrodites-tales-"+dateLabel) : ("aphrodites-tales-all-"+new Date().toISOString().slice(0,10));
-    X.writeFile(wb,fname+".xlsx");
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a"); link.href=url; link.download=fname+".xlsx";
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
   }
   function makeTests(){ mutate(d=>{ if(!d.users)d.users={}; for(let i=1;i<=8;i++){ d.users["Test"+i]=freshTest(); } d.testSeeded=true; return d; }); setMsg("8 test accounts ready (Test1-Test8, no password)."); }
   function grant(n,amt){ mutate(d=>{ if(d.users[n]){ d.users[n].coins=Math.max(0,(d.users[n].coins||0)+amt); logCoin(d,n,amt,"grant"); } return d; }); }
