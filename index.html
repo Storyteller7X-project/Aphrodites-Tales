@@ -369,10 +369,10 @@ function AdminHome({data,mutate,me,db,starters}){
     const S=data.stats||{}; const users=data.users||{}; const hist=data.history||[];
     const stArr=starters||[];
     const starterId=name=>{ const i=stArr.findIndex(s=>s.name===name); return i>=0?i+1:""; };
-    const tS=target?target.s:null, tW=target?target.wk:null;
-    const inT=e=>target==null||(((e&&e.s!=null?e.s:1)===tS)&&((e&&e.wk!=null?e.wk:0)===tW));
+    const tS=target?target.s:null, tW=(target&&target.wk!=null)?target.wk:null; const perWeek=tW!=null;
+    const inT=e=>target==null||(((e&&e.s!=null?e.s:1)===tS)&&(!perWeek||((e&&e.wk!=null?e.wk:0)===tW)));
     const inSeason=e=>target==null||((e&&e.s!=null?e.s:1)===tS);
-    const upToWeek=e=>target==null||(((e&&e.s!=null?e.s:1)===tS)&&((e&&e.wk!=null?e.wk:0)<=tW));
+    const upToWeek=e=>target==null||(((e&&e.s!=null?e.s:1)===tS)&&(!perWeek||((e&&e.wk!=null?e.wk:0)<=tW)));
     const nm=code=>{ const c=(db&&db.by)?db.by[code]:null; return c?c[1]:code; };
     const cost=code=>{ const c=(db&&db.by)?db.by[code]:null; return c?(c[6]||0):0; };
     const mana=code=>{ const c=(db&&db.by)?db.by[code]:null; return c?c[2]:""; };
@@ -425,7 +425,7 @@ function AdminHome({data,mutate,me,db,starters}){
     // 2) Weekly Check-ins
     const t2=[["Season","Week","Check-Ins","1st Place","2nd Place","3rd Place","4th Place"]];
     const wkSet={}; (S.checkins||[]).filter(inSeason).forEach(e=>wkSet[(e.s||1)+"|"+e.wk]=true); hist.filter(inSeason).forEach(h=>wkSet[(h.s||1)+"|"+(h.wk||0)]=true);
-    Object.keys(wkSet).filter(k=>target==null||(Number(k.split("|")[0])===tS&&Number(k.split("|")[1])===tW)).sort((a,b)=>{const x=a.split("|"),y=b.split("|");return (x[0]-y[0])||(x[1]-y[1]);}).forEach(k=>{ const p=k.split("|"); const s=Number(p[0]),wk=Number(p[1]);
+    Object.keys(wkSet).filter(k=>target==null||(Number(k.split("|")[0])===tS&&(!perWeek||Number(k.split("|")[1])===tW))).sort((a,b)=>{const x=a.split("|"),y=b.split("|");return (x[0]-y[0])||(x[1]-y[1]);}).forEach(k=>{ const p=k.split("|"); const s=Number(p[0]),wk=Number(p[1]);
       const ci=(S.checkins||[]).filter(e=>(e.s||1)===s&&e.wk===wk).length;
       const h=hist.find(h=>(h.s||1)===s&&(h.wk||0)===wk)||{}; const pl=h.placements||{};
       t2.push([s,wk,ci,pl[1]||"",pl[2]||"",pl[3]||"",pl[4]||""]);
@@ -436,7 +436,7 @@ function AdminHome({data,mutate,me,db,starters}){
     const led={}; (S.coins||[]).forEach(e=>{ const k=(e.s||1)+"|"+e.wk+"|"+e.a; (led[k]=led[k]||[]).push(e); }); Object.keys(led).forEach(k=>led[k].sort((x,y)=>(x.id||0)-(y.id||0)));
     const t3=[["Season","Week","Player ID","Account ID","Checked In (1/0)","Coins at Start","Coins Earned (from every source)","Packs Opened","No. Cards Picked","Coins Spent on Packs","Total value of cards from packs","Mean value of cards from packs","Median value of cards from packs","Pack skips","Total value of cards from skipped packs","Mean value of cards from skipped packs","Median value of cards from skipped packs","Store Cards Bought","Coins Spent in Store","Total value of cards bought from store","Mean value of cards bought from store","Median value of cards bought from store","Removal Packs Bought","Cards Removed","Coins Spent on Removals","Total value of cards removed","Mean value of cards removed","Median value of cards removed","Coins End","Deck Code for matchday","Deck Size","Champions in Deck","Total value of deck","Mean value of cards in deck","Median value of cards in deck","Matches Played","Wins","Losses","Byes","Swiss Seed","Final Placement","AP Earned","AP Total"]];
     const weekKeys={}; ["packs","buys","removals","checkins","seeds","deckLocks","coins"].forEach(catn=>(S[catn]||[]).forEach(e=>{ weekKeys[(e.s||1)+"|"+e.wk+"|"+e.a]=true; }));
-    Object.keys(weekKeys).filter(k=>{ const p=k.split("|"); return target==null||(Number(p[0])===tS&&Number(p[1])===tW); }).sort((A,B)=>{ const a=A.split("|"),b=B.split("|"); return (a[0]-b[0])||(a[1]-b[1])||(a[2]<b[2]?-1:1); }).forEach(k=>{
+    Object.keys(weekKeys).filter(k=>{ const p=k.split("|"); return target==null||(Number(p[0])===tS&&(!perWeek||Number(p[1])===tW)); }).sort((A,B)=>{ const a=A.split("|"),b=B.split("|"); return (a[0]-b[0])||(a[1]-b[1])||(a[2]<b[2]?-1:1); }).forEach(k=>{
       const p=k.split("|"); const s=Number(p[0]),wk=Number(p[1]),a=p[2];
       const pk=(S.packs||[]).filter(e=>(e.s||1)===s&&e.wk===wk&&e.a===a);
       const picked=pk.filter(e=>e.pick).map(e=>cost(e.pick)); const skipped=[].concat(...pk.map(e=>vals(e.skip||[])));
@@ -485,7 +485,10 @@ function AdminHome({data,mutate,me,db,starters}){
     (S.packs||[]).filter(upToWeek).forEach(e=>{ if(e.pick){ const k=collK(e.a,e.pick); (coll[k]=coll[k]||{st:0,pk:0,sto:0}).pk+=1; } });
     (S.buys||[]).filter(upToWeek).forEach(e=>{ const k=collK(e.a,e.c); (coll[k]=coll[k]||{st:0,pk:0,sto:0}).sto+=1; });
     const t8=[["Season","Week","Player ID","Account ID","Card ID","Card Name","Total Copies","Copies from Starter","Copies from Packs","Copies from Store"]];
-    const cwk = target!=null?tW:(data.week||1); const csea = target!=null?tS:(data.season||1);
+    let cwk;
+    if(perWeek) cwk=tW;
+    else { let mx=0; ["packs","buys","removals","checkins","deckLocks","seeds"].forEach(cn=>(S[cn]||[]).forEach(e=>{ if(((e.s!=null?e.s:1)===(target!=null?tS:(data.season||1)))&&(e.wk||0)>mx) mx=e.wk||0; })); cwk=mx||(data.week||1); }
+    const csea = target!=null?tS:(data.season||1);
     Object.keys(coll).sort().forEach(k=>{ const p=k.split("|"); const v=coll[k]; t8.push([csea,cwk,p[0],p[0],p[1],nm(p[1]),v.st+v.pk+v.sto,v.st,v.pk,v.sto]); });
     add("Card Collection",t8);
 
@@ -563,14 +566,21 @@ function AdminHome({data,mutate,me,db,starters}){
             {isFullAdmin && <button className="btn" onClick={()=>seasonArm?resetSeason():setSeasonArm(true)} style={{width:"100%",marginTop:"10px",padding:"9px",background:seasonArm?"#3a1010":"transparent",border:"1px solid "+(seasonArm?"#a33":"#5a2a2a"),borderRadius:"8px",color:seasonArm?"#f88":"#a66",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>{seasonArm?"Confirm: reset season - clears every deck, back to starter choice":"Reset season (all players re-pick a starter deck)"}</button>}
           </div>
           {me===OWNER && <div style={sCard}>
-            <div style={{...sLbl,marginBottom:"8px"}}>Statistics per tournament</div>
-            <div style={{fontSize:"15px",color:C.muted,marginBottom:"12px",lineHeight:1.5}}>Each finished tournament downloads as its own spreadsheet, named by its date. Only the Storyteller account can see this for now.</div>
-            {(data.history||[]).length===0 && <div style={{fontSize:"15px",color:"#948a74",marginBottom:"10px"}}>No finished tournaments yet. Finish a tournament and it will appear here to export.</div>}
-            {(data.history||[]).map((h,i)=>{ const dl=new Date(h.date).toISOString().slice(0,10); const tag=dl+(h.name?"-"+h.name.replace(/[^A-Za-z0-9]+/g,"_"):"");
-              return <button key={i} className="btn" onClick={()=>exportStats({s:h.s||1,wk:h.wk||0},tag)} style={{width:"100%",marginBottom:"7px",padding:"10px 12px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"15px",textAlign:"left",lineHeight:1.4}}>{dl} · S{h.s||1}W{h.wk||"?"}{h.name?" · "+h.name:""}<br/><span style={{fontSize:"13px",color:"#7fae8f"}}>champion {h.champion||"-"} · download .xlsx</span></button>;
+            <div style={{...sLbl,marginBottom:"8px"}}>Statistics per season</div>
+            <div style={{fontSize:"15px",color:C.muted,marginBottom:"12px",lineHeight:1.5}}>Each season downloads as its own spreadsheet covering every week from start to finish. Only the Storyteller account can see this for now.</div>
+            {seasonsAvailable.map(s=>{ const today=new Date().toISOString().slice(0,10); const current=s===(data.season||1);
+              return <button key={s} className="btn" onClick={()=>exportStats({s:s},"season-"+s+"-"+today)} style={{width:"100%",marginBottom:"7px",padding:"11px 12px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"16px",textAlign:"left",lineHeight:1.4}}>Season {s}{current?" (in progress)":""}<br/><span style={{fontSize:"13px",color:"#7fae8f"}}>whole season · download .xlsx</span></button>;
             })}
-            <button className="btn" onClick={()=>exportStats({s:data.season||1,wk:data.week||1},new Date().toISOString().slice(0,10)+"-current-S"+(data.season||1)+"W"+(data.week||1))} style={{width:"100%",marginTop:"4px",padding:"9px",background:"#0d0f18",border:"1px solid #334466",borderRadius:"8px",color:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Export current week in progress (S{data.season||1} W{data.week||1})</button>
-            <button className="btn" onClick={()=>exportStats(null,null)} style={{width:"100%",marginTop:"7px",padding:"9px",background:"transparent",border:"1px solid #444",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px"}}>Export everything in one file</button>
+            <button className="btn" onClick={()=>exportStats(null,null)} style={{width:"100%",marginTop:"7px",padding:"9px",background:"transparent",border:"1px solid #444",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px"}}>Export everything (all seasons in one file)</button>
+            {(()=>{ const SS=data.stats||{}; const cats=[["packs","packs"],["buys","store buys"],["removals","removals"],["checkins","check-ins"],["starters","starters"],["matches","matches"],["deckLocks","deck locks"],["coins","coin events"]];
+              const seasons=Array.from(new Set([].concat(...cats.map(c=>(SS[c[0]]||[]).map(e=>e.s||1))))).sort((a,b)=>a-b);
+              return <div style={{fontSize:"13px",color:"#7a7264",marginTop:"12px",lineHeight:1.7,borderTop:"1px solid #ffffff12",paddingTop:"10px"}}>
+                <div style={{color:"#948a74",marginBottom:"4px",fontFamily:"'Cinzel',serif"}}>Records on file (diagnostic)</div>
+                {seasons.length===0
+                  ? <div>No statistics have been recorded yet on this version.</div>
+                  : seasons.map(s=><div key={s} style={{marginBottom:"2px"}}>Season {s}: {cats.map(c=>c[1]+" "+(SS[c[0]]||[]).filter(e=>(e.s||1)===s).length).join(" · ")}</div>)}
+              </div>;
+            })()}
           </div>}
           <Leaderboard data={data} me={me}/>
         </React.Fragment>
