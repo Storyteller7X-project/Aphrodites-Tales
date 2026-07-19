@@ -484,7 +484,7 @@ function AdminHome({data,mutate,me,db,starters}){
       const u=users[n];
       t1.push([sea,n,n,n,n,starterOfSeason(n,sea),(u.regSeason===sea?u.regWeek:"")||"",pk.length,picked.length,sum(picked),mean(picked),median(picked),skipped.length,sum(skipped),mean(skipped),median(skipped),buys.length,sum(bv),mean(bv),median(bv),rem.length,sum(remCost),mean(remCost),median(remCost),sum(remCounts),mean(remCounts),median(remCounts),sum(remVals),mean(remVals),median(remVals),ci,fins.length,fins.filter(p=>p===1).length,fins.reduce((x,p)=>x+apFor(p),0),fins.length?Math.min.apply(null,fins):""]);
     }); });
-    add("Player Season Summary",t1);
+    add("Accounts & Data entire Season",t1);
 
     // 2) Weekly Check-ins
     const t2=[["Season","Week","Check-Ins","1st Place","2nd Place","3rd Place","4th Place"]];
@@ -494,7 +494,7 @@ function AdminHome({data,mutate,me,db,starters}){
       const h=hist.find(h=>(h.s||1)===s&&(h.wk||0)===wk)||{}; const pl=h.placements||{};
       t2.push([s,wk,ci,pl[1]||"",pl[2]||"",pl[3]||"",pl[4]||""]);
     });
-    add("Weekly Check-ins",t2);
+    add("Account Independant Data",t2);
 
     // 3) Player Week Summary
     const led={}; (S.coins||[]).forEach(e=>{ const k=normS(e)+"|"+e.wk+"|"+e.a; (led[k]=led[k]||[]).push(e); }); Object.keys(led).forEach(k=>led[k].sort((x,y)=>(x.id||0)-(y.id||0)));
@@ -523,7 +523,7 @@ function AdminHome({data,mutate,me,db,starters}){
       let apTot=0; hist.filter(h=>(h.s||1)===s&&(h.wk||0)<=wk).forEach(h=>Object.keys(h.placements||{}).forEach(pl=>{ if(h.placements[pl]===a) apTot+=apFor(parseInt(pl,10)); }));
       t3.push([s,wk,a,a,ci,cStart,earned,pk.length,picked.length,spPack,sum(picked),mean(picked),median(picked),pk.filter(e=>!e.pick).length,sum(skipped),mean(skipped),median(skipped),buys.length,spStore,sum(bv),mean(bv),median(bv),rem.length,sum(rem.map(e=>e.n||0)),spRem,sum(remVals),mean(remVals),median(remVals),cEnd,dl.deck||"",dl.size!=null?dl.size:"",dl.champs!=null?dl.champs:"",dl.valTotal!=null?dl.valTotal:"",dl.valMean!=null?dl.valMean:"",dl.valMedian!=null?dl.valMedian:"",mts.length,wins,losses,byes,seed!=null?seed:"",placement,placement===""?0:apFor(placement),apTot]);
     });
-    add("Player Week Summary",t3);
+    add("Weekly Economy",t3);
 
     // 4) Pack Opens
     const t4=[["Season","Week","Pack ID","Date","Player ID","Account ID","Region","Picked","Skipped","Cost of picked Card","Coins Before","Copies Owned Before","Deck Size Before"]];
@@ -538,12 +538,12 @@ function AdminHome({data,mutate,me,db,starters}){
     // 6) Removal Packs
     const t6=[["Season","Week","Removal pack ID","Date","Player ID","Account ID","Removal Slots Used","Cost","Coins Before","Deck Size Before","Deck Size After"]];
     (S.removals||[]).filter(inT).forEach(e=>{ const after=(e.after!=null)?e.after:((e.before!=null&&e.n!=null)?(e.before-e.n):""); t6.push([normS(e),e.wk,e.id||"",dt(e.t),e.a,e.a,e.n,e.cost,e.coinsBefore!=null?e.coinsBefore:"",e.before,after]); });
-    add("Removal Packs",t6);
+    add("Removal Purchases",t6);
 
     // 7) Individual Card Removals
     const t7=[["Season","Week","Card Removal ID","Date","Removal pack ID","Player ID","Account ID","Card ID","Quantity Removed"]];
     (S.removals||[]).filter(inT).forEach(e=>{ const rm=recon.removedOf(e)||{}; let sub=0; Object.keys(rm).forEach(c=>{ sub++; t7.push([normS(e),e.wk,(e.id||"")+"-"+sub,dt(e.t),e.id||"",e.a,e.a,c,rm[c]]); }); });
-    add("Individual Card Removals",t7);
+    add("Removed Cards",t7);
 
     // 8) Card Collection (cumulative through the selected week, by source)
     const collK=(a,c)=>a+"|"+c; const coll={};
@@ -556,29 +556,31 @@ function AdminHome({data,mutate,me,db,starters}){
     else { let mx=0; ["packs","buys","removals","checkins","deckLocks","seeds"].forEach(cn=>(S[cn]||[]).forEach(e=>{ if(((e.s!=null?e.s:1)===(target!=null?tS:(data.season||1)))&&(e.wk||0)>mx) mx=e.wk||0; })); cwk=mx||(data.week||1); }
     const csea = target!=null?tS:(data.season||1);
     Object.keys(coll).sort().forEach(k=>{ const p=k.split("|"); const v=coll[k]; t8.push([csea,cwk,p[0],p[0],p[1],nm(p[1]),v.st+v.pk+v.sto,v.st,v.pk,v.sto]); });
-    add("Card Collection",t8);
+    add("Locked Deck Cards",t8);
 
     // 9) Match Log
     const t9=[["Season","Week","Match ID","Stage","Round","Player A ID","Account A ID","Player B ID","Account B ID","Winner Account ID","Bye"]];
     (S.matches||[]).filter(inT).forEach(e=>t9.push([normS(e),e.wk,e.id||"",e.stage,e.round,e.a,e.a,e.b,e.b,e.winner,e.bye]));
-    add("Match Log",t9);
+    add("Matches",t9);
 
     // 10) Starter Contents (all starters for the season)
     const t10=[["Season","Starter ID","Card ID","Card Name","Copies"]];
     seasonsList.forEach(sea=>{ stArr.forEach((s,i)=>{ const cnt={}; (s.codes||[]).forEach(c=>cnt[c]=(cnt[c]||0)+1); Object.keys(cnt).forEach(c=>t10.push([sea,i+1,c,nm(c),cnt[c]])); }); });
-    add("Starter Contents",t10);
+    add("Starter Cards",t10);
 
     // 11) Starter Summary
     const t11=[["Season","Starter ID","Regions","Selected","Total value of cards from Starter Deck","Mean value of cards from Starter Deck","Median value of cards from Starter Deck"]];
     seasonsList.forEach(sea=>{ stArr.forEach((s,i)=>{ const cv=(s.codes||[]).map(cost); const rset={}; (s.codes||[]).forEach(c=>((db&&db.by&&db.by[c]&&db.by[c][5])||[]).forEach(r=>rset[r]=true)); const selected=(S.starters||[]).filter(e=>normS(e)===sea&&starterNameOf(e)===s.name).length; t11.push([sea,i+1,Object.keys(rset).join(", "),selected,sum(cv),mean(cv),median(cv)]); }); });
-    add("Starter Summary",t11);
+    add("Starter Decks",t11);
 
     // 12) Card Reference + pick rate
     const off={},pic={}; (S.packs||[]).filter(inSeason).forEach(e=>{ const all=(e.pick?[e.pick]:[]).concat(e.skip||[]); all.forEach(c=>off[c]=(off[c]||0)+1); if(e.pick)pic[e.pick]=(pic[e.pick]||0)+1; });
     const t12=[["Card ID","Name","Cost","Rarity","Region(s)","Cost","Category","Times offered","Times picked","Times skipped","Pick %"]];
     (db&&db.list?db.list:[]).forEach(c=>{ const o=off[c[0]]||0,p=pic[c[0]]||0; t12.push([c[0],c[1],c[2],(c[4]===1?"Champion":["Common","Rare","Epic","Champion"][c[3]]||""),(c[5]||[]).join(", "),c[6],c[7]||"",o,p,o-p,o?Math.round(p/o*100)+"%":""]); });
-    add("Card Reference",t12);
+    add("Card Database",t12);
 
+    const t13=[["Timestamp","Email address","What was your username during the season?","Please rate how much you enjoyed playing in this season of Aphrodite's Tales:","Please rate how fair you think the format of Aphrodite's Tales is currently:","Please rate the current speed of progression (both too slow or too fast should be rated negatively):","Please rate the current economic balancing (Cost for different actions, droprates from packs etc):","Please rate the current scheduling and frequency of Aphrodite's Tales:","If you did not paricipate in one or more matchdays, what was the main reason for your absence?","If you have any further comments, such as format recommendations, critism, praise etc, please leave them here. You are also more than welcome to give further reasoning to your ratings."]];
+    add("Player Feedback",t13);
     const fname = dateLabel ? ("aphrodites-tales-"+dateLabel) : ("aphrodites-tales-all-"+new Date().toISOString().slice(0,10));
     const buf=await wb.xlsx.writeBuffer();
     const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
