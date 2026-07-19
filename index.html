@@ -369,12 +369,74 @@ function AdminHome({data,mutate,me,db,starters}){
     const S=data.stats||{}; const users=data.users||{}; const hist=data.history||[];
     const stArr=starters||[];
     const starterId=name=>{ const i=stArr.findIndex(s=>s.name===name); return i>=0?i+1:""; };
-    const starterOfSeason=(n,sea)=>{ const ev=((S&&S.starters)||[]).filter(e=>e.a===n&&(e.s!=null?e.s:1)===sea).slice(-1)[0]; if(ev) return starterId(ev.st); return (sea===(data.season||1)&&users[n])?starterId(users[n].starter):""; };
+    /* normS: season of an entry. Legacy starter rows stored the starter NAME in .s, so a string means "no season recorded" (treated as season 1). */
+    const normS=e=>{ const v=e&&e.s; return (typeof v==="number")?v:1; };
+    const starterNameOf=e=>e?(e.st||(typeof e.s==="string"?e.s:"")):"";
+    const starterCodesOf=e=>{ if(!e) return []; if(e.codes&&e.codes.length) return e.codes; const st=stArr.find(x=>x.name===starterNameOf(e)); return st?(st.codes||[]):[]; };
+    const starterOfSeason=(n,sea)=>{ const ev=((S&&S.starters)||[]).filter(e=>e.a===n&&normS(e)===sea).slice(-1)[0]; if(ev) return starterId(starterNameOf(ev)); return (sea===(data.season||1)&&users[n])?starterId(users[n].starter):""; };
     const isStaff=n=>{ const u=users[n]; return !!(u&&u.role!=="player"); };
+    /* legacy deckLocks lack champs/value stats; derive them by decoding the stored deck code */
+    const lockDerived=e=>{ if(!e||!e.deck) return {}; if(e.champs!=null&&e.valTotal!=null&&e.valMean!=null&&e.valMedian!=null) return e;
+      const dk=decodeDeck(e.deck); if(!dk.length) return e;
+      const flat=[]; dk.forEach(x=>{ for(let i=0;i<(x.count||0);i++) flat.push(x.code); });
+      const cs=flat.map(cost); const tot=sum(cs);
+      return Object.assign({},e,{ champs:(e.champs!=null?e.champs:dk.filter(x=>{const c=(db&&db.by)?db.by[x.code]:null;return c&&c[4]===1;}).reduce((s2,x)=>s2+(x.count||0),0)),
+        valTotal:(e.valTotal!=null?e.valTotal:tot), valMean:(e.valMean!=null?e.valMean:mean(cs)), valMedian:(e.valMedian!=null?e.valMedian:median(cs)), size:(e.size!=null?e.size:flat.length) }); };
+    /* RECONSTRUCTION of legacy gaps, computed at export time from the event timeline. Never writes to the database. */
+    const recon=(function(){
+      const evts={};
+      const push=(a,ev)=>{ (evts[a]=evts[a]||[]).push(ev); };
+      (S.starters||[]).forEach(e=>push(e.a,{t:e.t||0,k:"starter",codes:starterCodesOf(e)}));
+      (S.packs||[]).forEach(e=>{ if(e.pick) push(e.a,{t:e.t||0,k:"add",code:e.pick,e:e}); else push(e.a,{t:e.t||0,k:"skip",e:e}); });
+      (S.buys||[]).forEach(e=>push(e.a,{t:e.t||0,k:"add",code:e.c,e:e}));
+      (S.removals||[]).forEach(e=>push(e.a,{t:e.t||0,k:"rem",e:e}));
+      Object.keys(evts).forEach(a=>evts[a].sort((x,y)=>x.t-y.t));
+      /* which cards did legacy removals take? deck-diff per (season,week,player): base deck + that week's acquisitions - locked deck */
+      const removedByEvent=new Map();
+      const locks={}; (S.deckLocks||[]).forEach(e=>{ locks[normS(e)+"|"+e.wk+"|"+e.a]=e; });
+      const missing={}; (S.removals||[]).forEach(e=>{ if(!e.removed){ const k=normS(e)+"|"+e.wk+"|"+e.a; (missing[k]=missing[k]||[]).push(e); } });
+      Object.keys(missing).forEach(k=>{
+        const p=k.split("|"); const s=+p[0], wk=+p[1], a=p[2];
+        const thisLock=locks[s+"|"+wk+"|"+a]; if(!thisLock||!thisLock.deck) return;
+        let base=null;
+        const prev=locks[s+"|"+(wk-1)+"|"+a];
+        if(prev&&prev.deck) base=decodeDeck(prev.deck);
+        else { const st=(S.starters||[]).filter(e=>e.a===a&&normS(e)===s&&(e.wk||0)<=wk).slice(-1)[0]; if(st) base=starterCodesOf(st).map(c=>({code:c,count:1})); }
+        if(!base||!base.length) return;
+        const cnt={}; base.forEach(x=>cnt[x.code]=(cnt[x.code]||0)+x.count);
+        (S.packs||[]).forEach(e=>{ if(e.a===a&&normS(e)===s&&e.wk===wk&&e.pick) cnt[e.pick]=(cnt[e.pick]||0)+1; });
+        (S.buys||[]).forEach(e=>{ if(e.a===a&&normS(e)===s&&e.wk===wk) cnt[e.c]=(cnt[e.c]||0)+1; });
+        (S.removals||[]).forEach(e=>{ if(e.a===a&&normS(e)===s&&e.wk===wk&&e.removed){ Object.keys(e.removed).forEach(c=>cnt[c]=(cnt[c]||0)-e.removed[c]); } });
+        const after=decodeDeck(thisLock.deck); if(!after.length) return;
+        const aft={}; after.forEach(x=>aft[x.code]=(aft[x.code]||0)+x.count);
+        const neg=Object.keys(aft).some(c=>(aft[c]||0)>(cnt[c]||0));
+        const diff={}; let diffN=0;
+        Object.keys(cnt).forEach(c=>{ const dd=(cnt[c]||0)-(aft[c]||0); if(dd>0){ diff[c]=dd; diffN+=dd; } });
+        const needN=missing[k].reduce((x,e)=>x+(e.n||0),0);
+        if(neg||diffN===0||diffN!==needN) return; /* only attribute when the math closes exactly */
+        const pool=[]; Object.keys(diff).sort().forEach(c=>{ for(let i=0;i<diff[c];i++) pool.push(c); });
+        missing[k].sort((x,y)=>(x.t||0)-(y.t||0)).forEach(e=>{ const take=pool.splice(0,e.n||0); const m={}; take.forEach(c=>m[c]=(m[c]||0)+1); removedByEvent.set(e,m); });
+      });
+      const removedOf=e=>(e&&e.removed)||removedByEvent.get(e)||null;
+      /* replay deck size and per-card copies over each player's timeline to backfill old before-snapshots */
+      const sizeB=new Map(), copB=new Map(), copOK=new Map();
+      Object.keys(evts).forEach(a=>{
+        let size=0; const per={}; let uncertain=false;
+        evts[a].forEach(ev=>{
+          if(ev.k==="starter"){ size=ev.codes.length; ev.codes.forEach(c=>per[c]=(per[c]||0)+1); return; }
+          if(ev.k==="add"){ sizeB.set(ev.e,size); copB.set(ev.e,per[ev.code]||0); copOK.set(ev.e,!uncertain); size+=1; per[ev.code]=(per[ev.code]||0)+1; return; }
+          if(ev.k==="skip"){ sizeB.set(ev.e,size); return; }
+          if(ev.k==="rem"){ const e=ev.e; if(e.before!=null) size=e.before; const rm=removedOf(e); if(rm){ Object.keys(rm).forEach(c=>per[c]=Math.max(0,(per[c]||0)-rm[c])); } else { uncertain=true; } size=Math.max(0,size-(e.n||0)); }
+        });
+      });
+      return { removedOf:removedOf,
+        sizeBefore:function(e){ return sizeB.has(e)?sizeB.get(e):null; },
+        copiesBefore:function(e){ return (copB.has(e)&&copOK.get(e))?copB.get(e):null; } };
+    })();
     const tS=target?target.s:null, tW=(target&&target.wk!=null)?target.wk:null; const perWeek=tW!=null;
-    const inT=e=>target==null||(((e&&e.s!=null?e.s:1)===tS)&&(!perWeek||((e&&e.wk!=null?e.wk:0)===tW)));
-    const inSeason=e=>target==null||((e&&e.s!=null?e.s:1)===tS);
-    const upToWeek=e=>target==null||(((e&&e.s!=null?e.s:1)===tS)&&(!perWeek||((e&&e.wk!=null?e.wk:0)<=tW)));
+    const inT=e=>target==null||((normS(e)===tS)&&(!perWeek||((e&&e.wk!=null?e.wk:0)===tW)));
+    const inSeason=e=>target==null||(normS(e)===tS);
+    const upToWeek=e=>target==null||((normS(e)===tS)&&(!perWeek||((e&&e.wk!=null?e.wk:0)<=tW)));
     const nm=code=>{ const c=(db&&db.by)?db.by[code]:null; return c?c[1]:code; };
     const cost=code=>{ const c=(db&&db.by)?db.by[code]:null; return c?(c[6]||0):0; };
     const mana=code=>{ const c=(db&&db.by)?db.by[code]:null; return c?c[2]:""; };
@@ -410,14 +472,14 @@ function AdminHome({data,mutate,me,db,starters}){
     // 1) Player Season Summary
     const t1=[["Season","Player ID","Account ID","Account Name","Player Name","Starter ID","Registration Week","Total Packs oepened","Total Cards picked","Total value of all cards picked","Mean value of all cards picked","Median value of all cards picked","Total cards skipped","Total value of all cards skipped","Mean value of all cards skipped","Median value of all cards skipped","Total cards bought form Store","Total value of all cards bought form Store","Mean value of all cards bought form Store","Median value of all cards bought form Store","Total removals bought","Total coins spent on removal","Mean coins spent on removal","Median coins spent on removal","Total Cards removed","Mean cards removed per removal pack","Median cards removed per removal pack","Total value of all cards removed","Mean value of all cards removed","Median value of all cards removed","Check-Ins","Matchday Top4's","Matchday Wins","Aphrodite Points","Final Placement"]];
     seasonsList.forEach(sea=>{ players.forEach(n=>{
-      const pk=(S.packs||[]).filter(e=>e.a===n&&(e.s||1)===sea);
+      const pk=(S.packs||[]).filter(e=>e.a===n&&normS(e)===sea);
       const picked=pk.filter(e=>e.pick).map(e=>cost(e.pick));
       const skipped=[].concat(...pk.map(e=>vals(e.skip||[])));
-      const buys=(S.buys||[]).filter(e=>e.a===n&&(e.s||1)===sea); const bv=buys.map(e=>cost(e.c));
-      const rem=(S.removals||[]).filter(e=>e.a===n&&(e.s||1)===sea);
+      const buys=(S.buys||[]).filter(e=>e.a===n&&normS(e)===sea); const bv=buys.map(e=>cost(e.c));
+      const rem=(S.removals||[]).filter(e=>e.a===n&&normS(e)===sea);
       const remCost=rem.map(e=>e.cost||0); const remCounts=rem.map(e=>e.n||0);
-      const remVals=[].concat(...rem.map(e=>vals(expandRemoved(e.removed))));
-      const ci=(S.checkins||[]).filter(e=>e.a===n&&(e.s||1)===sea).length;
+      const remVals=[].concat(...rem.map(e=>vals(expandRemoved(recon.removedOf(e)))));
+      const ci=(S.checkins||[]).filter(e=>e.a===n&&normS(e)===sea).length;
       const fins=[]; hist.filter(h=>(h.s||1)===sea).forEach(h=>Object.keys(h.placements||{}).forEach(pl=>{ if(h.placements[pl]===n) fins.push(parseInt(pl,10)); }));
       const u=users[n];
       t1.push([sea,n,n,n,n,starterOfSeason(n,sea),(u.regSeason===sea?u.regWeek:"")||"",pk.length,picked.length,sum(picked),mean(picked),median(picked),skipped.length,sum(skipped),mean(skipped),median(skipped),buys.length,sum(bv),mean(bv),median(bv),rem.length,sum(remCost),mean(remCost),median(remCost),sum(remCounts),mean(remCounts),median(remCounts),sum(remVals),mean(remVals),median(remVals),ci,fins.length,fins.filter(p=>p===1).length,fins.reduce((x,p)=>x+apFor(p),0),fins.length?Math.min.apply(null,fins):""]);
@@ -426,33 +488,35 @@ function AdminHome({data,mutate,me,db,starters}){
 
     // 2) Weekly Check-ins
     const t2=[["Season","Week","Check-Ins","1st Place","2nd Place","3rd Place","4th Place"]];
-    const wkSet={}; (S.checkins||[]).filter(inSeason).forEach(e=>wkSet[(e.s||1)+"|"+e.wk]=true); hist.filter(inSeason).forEach(h=>wkSet[(h.s||1)+"|"+(h.wk||0)]=true);
+    const wkSet={}; (S.checkins||[]).filter(inSeason).forEach(e=>wkSet[normS(e)+"|"+e.wk]=true); hist.filter(inSeason).forEach(h=>wkSet[(h.s||1)+"|"+(h.wk||0)]=true);
     Object.keys(wkSet).filter(k=>target==null||(Number(k.split("|")[0])===tS&&(!perWeek||Number(k.split("|")[1])===tW))).sort((a,b)=>{const x=a.split("|"),y=b.split("|");return (x[0]-y[0])||(x[1]-y[1]);}).forEach(k=>{ const p=k.split("|"); const s=Number(p[0]),wk=Number(p[1]);
-      const ci=(S.checkins||[]).filter(e=>(e.s||1)===s&&e.wk===wk&&!isStaff(e.a)).length;
+      const ci=(S.checkins||[]).filter(e=>normS(e)===s&&e.wk===wk&&!isStaff(e.a)).length;
       const h=hist.find(h=>(h.s||1)===s&&(h.wk||0)===wk)||{}; const pl=h.placements||{};
       t2.push([s,wk,ci,pl[1]||"",pl[2]||"",pl[3]||"",pl[4]||""]);
     });
     add("Weekly Check-ins",t2);
 
     // 3) Player Week Summary
-    const led={}; (S.coins||[]).forEach(e=>{ const k=(e.s||1)+"|"+e.wk+"|"+e.a; (led[k]=led[k]||[]).push(e); }); Object.keys(led).forEach(k=>led[k].sort((x,y)=>(x.id||0)-(y.id||0)));
+    const led={}; (S.coins||[]).forEach(e=>{ const k=normS(e)+"|"+e.wk+"|"+e.a; (led[k]=led[k]||[]).push(e); }); Object.keys(led).forEach(k=>led[k].sort((x,y)=>(x.id||0)-(y.id||0)));
     const t3=[["Season","Week","Player ID","Account ID","Checked In (1/0)","Coins at Start","Coins Earned (from every source)","Packs Opened","No. Cards Picked","Coins Spent on Packs","Total value of cards from packs","Mean value of cards from packs","Median value of cards from packs","Pack skips","Total value of cards from skipped packs","Mean value of cards from skipped packs","Median value of cards from skipped packs","Store Cards Bought","Coins Spent in Store","Total value of cards bought from store","Mean value of cards bought from store","Median value of cards bought from store","Removal Packs Bought","Cards Removed","Coins Spent on Removals","Total value of cards removed","Mean value of cards removed","Median value of cards removed","Coins End","Deck Code for matchday","Deck Size","Champions in Deck","Total value of deck","Mean value of cards in deck","Median value of cards in deck","Matches Played","Wins","Losses","Byes","Swiss Seed","Final Placement","AP Earned","AP Total"]];
-    const weekKeys={}; ["packs","buys","removals","checkins","seeds","deckLocks","coins"].forEach(catn=>(S[catn]||[]).forEach(e=>{ weekKeys[(e.s||1)+"|"+e.wk+"|"+e.a]=true; }));
+    const weekKeys={}; ["packs","buys","removals","checkins","seeds","deckLocks","coins"].forEach(catn=>(S[catn]||[]).forEach(e=>{ weekKeys[normS(e)+"|"+e.wk+"|"+e.a]=true; }));
     Object.keys(weekKeys).filter(k=>{ const p=k.split("|"); if(isStaff(p[2])) return false; return target==null||(Number(p[0])===tS&&(!perWeek||Number(p[1])===tW)); }).sort((A,B)=>{ const a=A.split("|"),b=B.split("|"); return (a[0]-b[0])||(a[1]-b[1])||(a[2]<b[2]?-1:1); }).forEach(k=>{
       const p=k.split("|"); const s=Number(p[0]),wk=Number(p[1]),a=p[2];
-      const pk=(S.packs||[]).filter(e=>(e.s||1)===s&&e.wk===wk&&e.a===a);
+      const pk=(S.packs||[]).filter(e=>normS(e)===s&&e.wk===wk&&e.a===a);
       const picked=pk.filter(e=>e.pick).map(e=>cost(e.pick)); const skipped=[].concat(...pk.map(e=>vals(e.skip||[])));
-      const buys=(S.buys||[]).filter(e=>(e.s||1)===s&&e.wk===wk&&e.a===a); const bv=buys.map(e=>cost(e.c));
-      const rem=(S.removals||[]).filter(e=>(e.s||1)===s&&e.wk===wk&&e.a===a); const remVals=[].concat(...rem.map(e=>vals(expandRemoved(e.removed))));
-      const ci=(S.checkins||[]).some(e=>(e.s||1)===s&&e.wk===wk&&e.a===a)?1:0;
-      const L=led[k]||[]; const earned=sum(L.filter(e=>e.delta>0).map(e=>e.delta));
+      const buys=(S.buys||[]).filter(e=>normS(e)===s&&e.wk===wk&&e.a===a); const bv=buys.map(e=>cost(e.c));
+      const rem=(S.removals||[]).filter(e=>normS(e)===s&&e.wk===wk&&e.a===a); const remVals=[].concat(...rem.map(e=>vals(expandRemoved(recon.removedOf(e)))));
+      const ci=(S.checkins||[]).some(e=>normS(e)===s&&e.wk===wk&&e.a===a)?1:0;
+      const L=led[k]||[]; const earned=L.length?sum(L.filter(e=>e.delta>0).map(e=>e.delta)):"";
       const cStart=L.length?(L[0].bal-L[0].delta):""; const cEnd=L.length?L[L.length-1].bal:"";
-      const spPack=Math.abs(sum(L.filter(e=>e.src==="pack").map(e=>e.delta)));
-      const spStore=Math.abs(sum(L.filter(e=>e.src==="store").map(e=>e.delta)));
-      const spRem=Math.abs(sum(L.filter(e=>e.src==="removal").map(e=>e.delta)));
-      const dl=(S.deckLocks||[]).filter(e=>(e.s||1)===s&&e.wk===wk&&e.a===a).slice(-1)[0]||{};
-      const seed=((S.seeds||[]).filter(e=>(e.s||1)===s&&e.wk===wk&&e.a===a).slice(-1)[0]||{}).seed;
-      const mts=(S.matches||[]).filter(e=>(e.s||1)===s&&e.wk===wk&&(e.a===a||e.b===a)&&e.winner);
+      /* spend per source: ledger when present, otherwise derived from the events themselves (legacy weeks) */
+      const cfgw=((S.config||[]).find(c=>c.s===s&&c.wk===wk)||{});
+      const spPack=L.some(e=>e.src==="pack")?Math.abs(sum(L.filter(e=>e.src==="pack").map(e=>e.delta))):(pk.length*(cfgw.packCost!=null?cfgw.packCost:1));
+      const spStore=L.some(e=>e.src==="store")?Math.abs(sum(L.filter(e=>e.src==="store").map(e=>e.delta))):sum(buys.map(e=>e.p||0));
+      const spRem=L.some(e=>e.src==="removal")?Math.abs(sum(L.filter(e=>e.src==="removal").map(e=>e.delta))):sum(rem.map(e=>e.cost||0));
+      const dl=lockDerived((S.deckLocks||[]).filter(e=>normS(e)===s&&e.wk===wk&&e.a===a).slice(-1)[0]||{});
+      const seed=((S.seeds||[]).filter(e=>normS(e)===s&&e.wk===wk&&e.a===a).slice(-1)[0]||{}).seed;
+      const mts=(S.matches||[]).filter(e=>normS(e)===s&&e.wk===wk&&(e.a===a||e.b===a)&&e.winner);
       const wins=mts.filter(e=>e.winner===a).length; const byes=mts.filter(e=>e.bye&&e.winner===a).length;
       const losses=mts.filter(e=>!e.bye&&e.winner&&e.winner!==a).length;
       let placement=""; hist.filter(h=>(h.s||1)===s&&(h.wk||0)===wk).forEach(h=>Object.keys(h.placements||{}).forEach(pl=>{ if(h.placements[pl]===a){ const v=parseInt(pl,10); if(placement===""||v<placement) placement=v; } }));
@@ -463,27 +527,27 @@ function AdminHome({data,mutate,me,db,starters}){
 
     // 4) Pack Opens
     const t4=[["Season","Week","Pack ID","Date","Player ID","Account ID","Region","Picked","Skipped","Cost of picked Card","Coins Before","Copies Owned Before","Deck Size Before"]];
-    (S.packs||[]).filter(inT).forEach(e=>t4.push([e.s||1,e.wk,e.id||"",dt(e.t),e.a,e.a,e.reg,e.pick?nm(e.pick):"(took nothing)",(e.skip||[]).map(nm).join(", "),e.pick?cost(e.pick):0,e.coinsBefore!=null?e.coinsBefore:"",e.copiesBefore!=null?e.copiesBefore:"",e.deckBefore!=null?e.deckBefore:""]));
+    (S.packs||[]).filter(inT).forEach(e=>{ const cb=e.copiesBefore!=null?e.copiesBefore:recon.copiesBefore(e); const db2=e.deckBefore!=null?e.deckBefore:recon.sizeBefore(e); t4.push([normS(e),e.wk,e.id||"",dt(e.t),e.a,e.a,e.reg,e.pick?nm(e.pick):"(took nothing)",(e.skip||[]).map(nm).join(", "),e.pick?cost(e.pick):0,e.coinsBefore!=null?e.coinsBefore:"",cb!=null?cb:"",db2!=null?db2:""]); });
     add("Pack Opens",t4);
 
     // 5) Store Purchases
     const t5=[["Season","Week","Store Action ID","Date","Player ID","Account ID","Card ID","Cost","Coins Before","Copies Owned Before","Deck Size Before"]];
-    (S.buys||[]).filter(inT).forEach(e=>t5.push([e.s||1,e.wk,e.id||"",dt(e.t),e.a,e.a,e.c,e.p,e.coinsBefore!=null?e.coinsBefore:"",e.copiesBefore!=null?e.copiesBefore:"",e.deckBefore!=null?e.deckBefore:""]));
+    (S.buys||[]).filter(inT).forEach(e=>{ const cb=e.copiesBefore!=null?e.copiesBefore:recon.copiesBefore(e); const db2=e.deckBefore!=null?e.deckBefore:recon.sizeBefore(e); t5.push([normS(e),e.wk,e.id||"",dt(e.t),e.a,e.a,e.c,e.p,e.coinsBefore!=null?e.coinsBefore:"",cb!=null?cb:"",db2!=null?db2:""]); });
     add("Store Purchases",t5);
 
     // 6) Removal Packs
     const t6=[["Season","Week","Removal pack ID","Date","Player ID","Account ID","Removal Slots Used","Cost","Coins Before","Deck Size Before","Deck Size After"]];
-    (S.removals||[]).filter(inT).forEach(e=>t6.push([e.s||1,e.wk,e.id||"",dt(e.t),e.a,e.a,e.n,e.cost,e.coinsBefore!=null?e.coinsBefore:"",e.before,e.after!=null?e.after:""]));
+    (S.removals||[]).filter(inT).forEach(e=>{ const after=(e.after!=null)?e.after:((e.before!=null&&e.n!=null)?(e.before-e.n):""); t6.push([normS(e),e.wk,e.id||"",dt(e.t),e.a,e.a,e.n,e.cost,e.coinsBefore!=null?e.coinsBefore:"",e.before,after]); });
     add("Removal Packs",t6);
 
     // 7) Individual Card Removals
     const t7=[["Season","Week","Card Removal ID","Date","Removal pack ID","Player ID","Account ID","Card ID","Quantity Removed"]];
-    (S.removals||[]).filter(inT).forEach(e=>{ let sub=0; Object.keys(e.removed||{}).forEach(c=>{ sub++; t7.push([e.s||1,e.wk,(e.id||"")+"-"+sub,dt(e.t),e.id||"",e.a,e.a,c,e.removed[c]]); }); });
+    (S.removals||[]).filter(inT).forEach(e=>{ const rm=recon.removedOf(e)||{}; let sub=0; Object.keys(rm).forEach(c=>{ sub++; t7.push([normS(e),e.wk,(e.id||"")+"-"+sub,dt(e.t),e.id||"",e.a,e.a,c,rm[c]]); }); });
     add("Individual Card Removals",t7);
 
     // 8) Card Collection (cumulative through the selected week, by source)
     const collK=(a,c)=>a+"|"+c; const coll={};
-    (S.starters||[]).filter(upToWeek).forEach(e=>(e.codes||[]).forEach(c=>{ const k=collK(e.a,c); (coll[k]=coll[k]||{st:0,pk:0,sto:0}).st+=1; }));
+    (S.starters||[]).filter(upToWeek).forEach(e=>starterCodesOf(e).forEach(c=>{ const k=collK(e.a,c); (coll[k]=coll[k]||{st:0,pk:0,sto:0}).st+=1; }));
     (S.packs||[]).filter(upToWeek).forEach(e=>{ if(e.pick){ const k=collK(e.a,e.pick); (coll[k]=coll[k]||{st:0,pk:0,sto:0}).pk+=1; } });
     (S.buys||[]).filter(upToWeek).forEach(e=>{ const k=collK(e.a,e.c); (coll[k]=coll[k]||{st:0,pk:0,sto:0}).sto+=1; });
     const t8=[["Season","Week","Player ID","Account ID","Card ID","Card Name","Total Copies","Copies from Starter","Copies from Packs","Copies from Store"]];
@@ -496,7 +560,7 @@ function AdminHome({data,mutate,me,db,starters}){
 
     // 9) Match Log
     const t9=[["Season","Week","Match ID","Stage","Round","Player A ID","Account A ID","Player B ID","Account B ID","Winner Account ID","Bye"]];
-    (S.matches||[]).filter(inT).forEach(e=>t9.push([e.s||1,e.wk,e.id||"",e.stage,e.round,e.a,e.a,e.b,e.b,e.winner,e.bye]));
+    (S.matches||[]).filter(inT).forEach(e=>t9.push([normS(e),e.wk,e.id||"",e.stage,e.round,e.a,e.a,e.b,e.b,e.winner,e.bye]));
     add("Match Log",t9);
 
     // 10) Starter Contents (all starters for the season)
@@ -506,7 +570,7 @@ function AdminHome({data,mutate,me,db,starters}){
 
     // 11) Starter Summary
     const t11=[["Season","Starter ID","Regions","Selected","Total value of cards from Starter Deck","Mean value of cards from Starter Deck","Median value of cards from Starter Deck"]];
-    seasonsList.forEach(sea=>{ stArr.forEach((s,i)=>{ const cv=(s.codes||[]).map(cost); const rset={}; (s.codes||[]).forEach(c=>((db&&db.by&&db.by[c]&&db.by[c][5])||[]).forEach(r=>rset[r]=true)); const selected=(S.starters||[]).filter(e=>(e.s||1)===sea&&e.st===s.name).length; t11.push([sea,i+1,Object.keys(rset).join(", "),selected,sum(cv),mean(cv),median(cv)]); }); });
+    seasonsList.forEach(sea=>{ stArr.forEach((s,i)=>{ const cv=(s.codes||[]).map(cost); const rset={}; (s.codes||[]).forEach(c=>((db&&db.by&&db.by[c]&&db.by[c][5])||[]).forEach(r=>rset[r]=true)); const selected=(S.starters||[]).filter(e=>normS(e)===sea&&starterNameOf(e)===s.name).length; t11.push([sea,i+1,Object.keys(rset).join(", "),selected,sum(cv),mean(cv),median(cv)]); }); });
     add("Starter Summary",t11);
 
     // 12) Card Reference + pick rate
@@ -575,12 +639,12 @@ function AdminHome({data,mutate,me,db,starters}){
             })}
             <button className="btn" onClick={()=>exportStats(null,null)} style={{width:"100%",marginTop:"7px",padding:"9px",background:"transparent",border:"1px solid #444",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px"}}>Export everything (all seasons in one file)</button>
             {(()=>{ const SS=data.stats||{}; const cats=[["packs","packs"],["buys","store buys"],["removals","removals"],["checkins","check-ins"],["starters","starters"],["seeds","seeds"],["matches","matches"],["deckLocks","deck locks"],["coins","coin events"]];
-              const seasons=Array.from(new Set([].concat(...cats.map(c=>(SS[c[0]]||[]).map(e=>e.s||1))))).sort((a,b)=>a-b);
+              const seasons=Array.from(new Set([].concat(...cats.map(c=>(SS[c[0]]||[]).map(e=>(typeof e.s==="number")?e.s:1))))).sort((a,b)=>a-b);
               return <div style={{fontSize:"13px",color:"#7a7264",marginTop:"12px",lineHeight:1.7,borderTop:"1px solid #ffffff12",paddingTop:"10px"}}>
                 <div style={{color:"#948a74",marginBottom:"4px",fontFamily:"'Cinzel',serif"}}>Records on file (diagnostic)</div>
                 {seasons.length===0
                   ? <div>No statistics have been recorded yet on this version.</div>
-                  : seasons.map(s=><div key={s} style={{marginBottom:"2px"}}>Season {s}: {cats.map(c=>c[1]+" "+(SS[c[0]]||[]).filter(e=>(e.s||1)===s).length).join(" · ")}</div>)}
+                  : seasons.map(s=><div key={s} style={{marginBottom:"2px"}}>Season {s}: {cats.map(c=>c[1]+" "+(SS[c[0]]||[]).filter(e=>((typeof e.s==="number")?e.s:1)===s).length).join(" · ")}</div>)}
               </div>;
             })()}
           </div>}
@@ -1142,6 +1206,24 @@ function encodeDeck(cards){
   });
   P.filter(x=>x.count>3).sort((a,b)=>a.code.localeCompare(b.code)).forEach(x=>{ wv(x.count); wv(x.set); wv(F2ID[x.fac]); wv(x.num); });
   return b32enc(out);
+}
+function b32dec(s){ const out=[]; let bits=0,val=0; for(let i=0;i<s.length;i++){ const idx=B32A.indexOf(s[i].toUpperCase()); if(idx<0) continue; val=(val<<5)|idx; bits+=5; if(bits>=8){ bits-=8; out.push((val>>>bits)&255); val=val&((1<<bits)-1); } } return out; }
+function decodeDeck(code){
+  try{
+    if(!code) return [];
+    const bytes=b32dec(code); if(!bytes.length) return [];
+    const ID2F={}; Object.keys(F2ID).forEach(k=>ID2F[F2ID[k]]=k);
+    let pos=1; /* skip format/version byte */
+    function rv(){ let v=0,shift=0; while(pos<bytes.length){ const b=bytes[pos++]; v+=(b&0x7F)*Math.pow(2,shift); if(!(b&0x80)) return v; shift+=7; } return v; }
+    const pad=(n,w)=>{ let s=String(n); while(s.length<w)s="0"+s; return s; };
+    const out=[];
+    [3,2,1].forEach(cnt=>{
+      const groups=rv();
+      for(let g=0;g<groups;g++){ const nc=rv(), set=rv(), fac=ID2F[rv()]||"??"; for(let i=0;i<nc;i++){ out.push({code:pad(set,2)+fac+pad(rv(),3),count:cnt}); } }
+    });
+    while(pos<bytes.length){ const cnt=rv(); if(!cnt)break; const set=rv(), fac=ID2F[rv()]||"??", num=rv(); out.push({code:pad(set,2)+fac+pad(num,3),count:cnt}); }
+    return out;
+  }catch(e){ return []; }
 }
 function fallbackCopy(text){ try{ const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); }catch(e){} }
 function deckUrl(deck){ const c=encodeDeck(deck||[]); return c?("https://lor.gg/en/deck/"+c):null; }
