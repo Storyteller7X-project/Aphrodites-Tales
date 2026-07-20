@@ -129,6 +129,8 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
+const BUILD=58;
+try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 function freshPlayer(pw){ return {password:pw,role:"player",coins:100,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -233,7 +235,7 @@ function Login({data,onLogin,onSpectator,onRegister,onRequestReset}){
           <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:C.muted,letterSpacing:".3em"}}>POWERED BY STORYTELLER</span>
           <span style={{height:"1px",width:"56px",background:"linear-gradient(90deg,#c8a96e99,transparent)"}}/>
         </div>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#948a74",letterSpacing:".25em",marginTop:"7px"}}>v. 0.1</div>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#948a74",letterSpacing:".25em",marginTop:"7px"}}>v. 0.1 <span style={{fontSize:"11px",letterSpacing:".1em",color:"#5a5446"}}>b{BUILD}</span></div>
       </div>
       <div className="fu" style={{width:"100%",maxWidth:"400px",display:"flex",flexDirection:"column",gap:"13px"}}>
         {mode==="login" ? (
@@ -298,7 +300,7 @@ function TopBar({me,role,coins,onLogout,changePw}){
       <div>
         <div style={{display:"flex",alignItems:"baseline",gap:"8px"}}>
           <div style={{fontFamily:"'Cinzel',serif",fontSize:"25px",fontWeight:900,letterSpacing:".14em",background:"linear-gradient(180deg,#f2dca0,#c8a96e 58%,#96703c)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>APHRODITE'S TALES</div>
-          <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#9e9478"}}>v. 0.1</span>
+          <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",color:"#9e9478"}}>v. 0.1 <span style={{fontSize:"11px",color:"#5a5446"}}>b{BUILD}</span></span>
         </div>
         <div style={{fontSize:"17px",color:C.muted,marginTop:"2px"}}>{me}{role==="admin"?" · Admin":role==="mod"?" · Mod":""}</div>
       </div>
