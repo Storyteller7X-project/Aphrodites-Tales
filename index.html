@@ -633,23 +633,13 @@ function AdminHome({data,mutate,me,db,starters}){
             <button className="btn" onClick={newWeek} style={{width:"100%",padding:"9px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Start next week (+100 all)</button>
             {isFullAdmin && <button className="btn" onClick={()=>seasonArm?resetSeason():setSeasonArm(true)} style={{width:"100%",marginTop:"10px",padding:"9px",background:seasonArm?"#3a1010":"transparent",border:"1px solid "+(seasonArm?"#a33":"#5a2a2a"),borderRadius:"8px",color:seasonArm?"#f88":"#a66",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>{seasonArm?"Confirm: reset season - clears every deck, back to starter choice":"Reset season (all players re-pick a starter deck)"}</button>}
           </div>
-          {me===OWNER && <div style={sCard}>
+          <div style={sCard}>
             <div style={{...sLbl,marginBottom:"8px"}}>Statistics per season</div>
-            <div style={{fontSize:"15px",color:C.muted,marginBottom:"12px",lineHeight:1.5}}>Each season downloads as its own spreadsheet covering every week from start to finish. Only the Storyteller account can see this for now.</div>
+            <div style={{fontSize:"15px",color:C.muted,marginBottom:"12px",lineHeight:1.5}}>Each season downloads as its own spreadsheet covering every week from start to finish.</div>
             {seasonsAvailable.map(s=>{ const today=new Date().toISOString().slice(0,10); const current=s===(data.season||1);
               return <button key={s} className="btn" onClick={()=>exportStats({s:s},"season-"+s+"-"+today)} style={{width:"100%",marginBottom:"7px",padding:"11px 12px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"16px",textAlign:"left",lineHeight:1.4}}>Season {s}{current?" (in progress)":""}<br/><span style={{fontSize:"13px",color:"#7fae8f"}}>whole season · download .xlsx</span></button>;
             })}
-            <button className="btn" onClick={()=>exportStats(null,null)} style={{width:"100%",marginTop:"7px",padding:"9px",background:"transparent",border:"1px solid #444",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px"}}>Export everything (all seasons in one file)</button>
-            {(()=>{ const SS=data.stats||{}; const cats=[["packs","packs"],["buys","store buys"],["removals","removals"],["checkins","check-ins"],["starters","starters"],["seeds","seeds"],["matches","matches"],["deckLocks","deck locks"],["coins","coin events"]];
-              const seasons=Array.from(new Set([].concat(...cats.map(c=>(SS[c[0]]||[]).map(e=>(typeof e.s==="number")?e.s:1))))).sort((a,b)=>a-b);
-              return <div style={{fontSize:"13px",color:"#7a7264",marginTop:"12px",lineHeight:1.7,borderTop:"1px solid #ffffff12",paddingTop:"10px"}}>
-                <div style={{color:"#948a74",marginBottom:"4px",fontFamily:"'Cinzel',serif"}}>Records on file (diagnostic)</div>
-                {seasons.length===0
-                  ? <div>No statistics have been recorded yet on this version.</div>
-                  : seasons.map(s=><div key={s} style={{marginBottom:"2px"}}>Season {s}: {cats.map(c=>c[1]+" "+(SS[c[0]]||[]).filter(e=>((typeof e.s==="number")?e.s:1)===s).length).join(" · ")}</div>)}
-              </div>;
-            })()}
-          </div>}
+          </div>
           <Leaderboard data={data} me={me}/>
         </React.Fragment>
       )}
