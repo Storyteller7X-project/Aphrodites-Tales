@@ -129,7 +129,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=67;
+const BUILD=69;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -648,7 +648,7 @@ function AdminHome({data,mutate,me,db,starters}){
           </div>
           <div style={sCard}>
             <div style={{...sLbl,marginBottom:"8px"}}>Statistics per season</div>
-            <div style={{fontSize:"15px",color:C.muted,marginBottom:"12px",lineHeight:1.5}}>Each season downloads as its own spreadsheet covering every week from start to finish.</div>
+            <div style={{fontSize:"15px",color:C.muted,marginBottom:"12px",lineHeight:1.5}}>Each season downloads as its own spreadsheet.</div>
             {seasonsAvailable.map(s=>{ const today=new Date().toISOString().slice(0,10); const current=s===(data.season||1);
               return <button key={s} className="btn" onClick={()=>exportStats({s:s},"season-"+s+"-"+today)} style={{width:"100%",marginBottom:"7px",padding:"11px 12px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"16px",textAlign:"left",lineHeight:1.4}}>Season {s}{current?" (in progress)":""}<br/><span style={{fontSize:"13px",color:"#7fae8f"}}>whole season · download .xlsx</span></button>;
             })}
@@ -920,7 +920,7 @@ function StarterSelect({starters,db,onPick}){
   return (
     <div style={{padding:"16px 18px",maxWidth:"720px",margin:"0 auto"}} className="fu">
       <div style={{...sLbl,marginBottom:"4px",textAlign:"center"}}>Choose your deck</div>
-      <div style={{fontSize:"18px",color:C.muted,textAlign:"center",marginBottom:"16px",lineHeight:1.6}}>Pick one starter deck. You can't change your choice until the season ends. You'll shape it by buying cards, opening packs, and removing cards.</div>
+      <div style={{fontSize:"18px",color:C.muted,textAlign:"center",marginBottom:"16px",lineHeight:1.6}}>Pick one starter deck. You can't change it until the season ends.</div>
       <div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
         {starters.map(s=>{
           const champs=s.codes.filter(c=>isChampCode(db,c)).slice(0,4).map(c=>db.by[c]).filter(Boolean);
@@ -994,7 +994,7 @@ function DeckView({db,deck,locked,coins,onRemove}){
       </div>
       {sellMode && (
         <div style={{...sCard,marginBottom:"12px",padding:"12px 16px",background:"#1a0f0a",borderColor:"#cc664433"}}>
-          <div style={{fontSize:"17px",color:"#e8b9a8",lineHeight:1.6,marginBottom:"10px"}}><strong style={{color:"#ffd9c8"}}>Remove up to {batch} cards.</strong> You don't have to remove them all. It costs <strong style={{color:C.gold}}>{cost} coins</strong> no matter how many you remove. Tap a card to select it; tap again to add more copies.</div>
+          <div style={{fontSize:"17px",color:"#e8b9a8",lineHeight:1.6,marginBottom:"10px"}}><strong style={{color:"#ffd9c8"}}>Remove up to {batch} cards.</strong> You don't have to remove them all. It costs <strong style={{color:C.gold}}>{cost} coins</strong> no matter how many you remove. Tap a card to select, tap again for more copies.</div>
           <div style={{marginBottom:"12px"}}>
             <div style={{fontSize:"14px",color:C.muted,marginBottom:"7px"}}>Cost by deck size (cards left in deck):</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:"6px"}}>
@@ -1144,7 +1144,7 @@ function computeRecords(players,rounds){
   }));
   return rec;
 }
-function buch(u,rec){ const os=(rec[u]&&rec[u].opps||[]).map(o=>rec[o]?rec[o].w:0); if(!os.length)return 0; const sum=os.reduce((a,b)=>a+b,0); return sum-Math.min.apply(null,os); }
+function buch(u,rec){ const os=(rec[u]&&rec[u].opps||[]).map(o=>rec[o]?rec[o].w:0); if(os.length<2) return 0; const sum=os.reduce((a,b)=>a+b,0); return sum-Math.max.apply(null,os)-Math.min.apply(null,os); }
 function solk(u,rec){ return (rec[u]&&rec[u].opps||[]).reduce((s,o)=>s+(rec[o]?rec[o].w:0),0); }
 function h2h(a,b,rounds){ let r=0; (rounds||[]).forEach(rd=>(rd.matches||[]).forEach(m=>{ if(!m.confirmed||m.bye)return; if((m.a===a&&m.b===b)||(m.a===b&&m.b===a)){ if(m.winner===a)r=1; else if(m.winner===b)r=-1; } })); return r; }
 function standing(players,rec,rounds,tb){ tb=tb||{}; return players.slice().sort((x,y)=>(rec[y].w-rec[x].w)||(buch(y,rec)-buch(x,rec))||(solk(y,rec)-solk(x,rec))||(-h2h(x,y,rounds))||((tb[y]||0)-(tb[x]||0))||x.localeCompare(y)); }
@@ -1491,7 +1491,7 @@ function Tournament({data,me,role,mutate}){
                 <div style={{fontSize:"14px",color:"#948a74",fontFamily:"'Cinzel',serif",letterSpacing:".05em",margin:"10px 0 2px"}}>Triangle</div>
                 {triOrder.map(k=>{ const mi=dm.findIndex(m=>m.st==="Triangle"&&m.r===k); return mi>=0?<div key={k} style={{display:"flex",gap:"8px",alignItems:"baseline"}}><span style={{width:"26px",fontSize:"13px",color:"#6f6a5e",fontFamily:"'Cinzel',serif"}}>{k}</span><div style={{flex:1}}>{row(dm[mi],mi)}</div></div>:null; })}
               </div>}
-              {isAdmin&&<div style={{fontSize:"13px",color:"#7a7264",marginTop:"10px",lineHeight:1.5}}>Changing a result here updates the standings, the champion and placements, and the statistics exports. Aphrodite Points already paid out are not adjusted automatically.</div>}
+              {isAdmin&&<div style={{fontSize:"13px",color:"#7a7264",marginTop:"10px",lineHeight:1.5}}>AP already paid out is not adjusted.</div>}
             </div>; })()}
         </React.Fragment>
       : <React.Fragment>
@@ -1516,7 +1516,7 @@ function Tournament({data,me,role,mutate}){
 
   const swissRoundsBox=((t.phase==="triangle"||t.phase==="done")&&(t.rounds||[]).some(rd=>(rd.matches||[]).length))?(
     <div style={box}>
-      <div style={{...sLbl,marginBottom:"10px"}}>Swiss rounds (played earlier in this tournament)</div>
+      <div style={{...sLbl,marginBottom:"10px"}}>Swiss rounds</div>
       {(t.rounds||[]).map((rd,ri)=><div key={"h"+ri}>
         <div style={{fontSize:"14px",color:"#948a74",fontFamily:"'Cinzel',serif",letterSpacing:".05em",margin:"8px 0 2px"}}>Round {ri+1}</div>
         {(rd.matches||[]).map((m,mi)=>{
@@ -1532,12 +1532,12 @@ function Tournament({data,me,role,mutate}){
   const finishBox=((t.phase==="triangle"||t.phase==="swiss")&&isAdmin)?(
 <div style={box}>
         <div style={{...sLbl,marginBottom:"6px"}}>Finish this tournament</div>
-        <div style={{fontSize:"15px",color:C.muted,marginBottom:"10px",lineHeight:1.5}}>Locks the placements from the matches confirmed so far and archives the tournament so anyone can browse it under Past tournaments. Use this when the remaining matches will not be played.</div>
+        <div style={{fontSize:"15px",color:C.muted,marginBottom:"10px",lineHeight:1.5}}>Archives the tournament with the current results.</div>
         <button className="btn" onClick={()=>endArm?endTournament():setEndArm(true)} style={{width:"100%",padding:"11px",background:endArm?"#1a3a1a":"#0d1a12",border:"1px solid "+(endArm?"#4a8a4a":"#2a5a3a"),borderRadius:"8px",color:endArm?"#a8d8a8":"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:700}}>{endArm?"Confirm: end and archive now":"End this tournament"}</button>
         {t.phase==="triangle"&&<button className="btn" onClick={()=>{ setSeedEdit(!seedEdit); setSeedSel(null); }} style={{width:"100%",marginTop:"10px",padding:"9px",background:seedEdit?"#1a1400":"transparent",border:"1px solid "+(seedEdit?"#c8a96e":"#3a3a3a"),borderRadius:"8px",color:seedEdit?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{seedEdit?"Done editing seeding":"Edit seeding (swap players in the A round)"}</button>}
-        {seedEdit&&<div style={{fontSize:"14px",color:"#948a74",marginTop:"7px",lineHeight:1.5}}>Tap two slots in the A matches to swap them. Results of changed matches and everything that follows from them are cleared and can be replayed.</div>}
+        {seedEdit&&<div style={{fontSize:"14px",color:"#948a74",marginTop:"7px",lineHeight:1.5}}>Tap two A slots to swap. Affected results are cleared.</div>}
         {t.phase==="triangle"&&(t.players||[]).length>0&&<div style={{marginTop:"12px",borderTop:"1px solid #ffffff12",paddingTop:"10px"}}>
-          <div style={{fontSize:"14px",color:"#948a74",marginBottom:"7px",fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>Remove a player (their unplayed matches become walkovers)</div>
+          <div style={{fontSize:"14px",color:"#948a74",marginBottom:"7px",fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>Remove a player</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:"7px"}}>
             {(t.players||[]).map(n=>(kickArm===n
               ? <button key={n} className="btn" onClick={()=>kickPlayer(n)} style={{padding:"5px 11px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:700}}>Kick {n}?</button>
@@ -1697,9 +1697,9 @@ function Tournament({data,me,role,mutate}){
           ? <div style={{marginTop:"12px",fontSize:"16px",color:"#6ac68a",fontFamily:"'Cinzel',serif",textAlign:"center"}}>Aphrodite Points awarded to the top 4.</div>
           : <React.Fragment>
               <button className="btn" onClick={awardAP} style={{width:"100%",marginTop:"12px",padding:"11px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900}}>Award Aphrodite Points automatically (5/3/2/1)</button>
-              <div style={{fontSize:"14px",color:"#948a74",marginTop:"8px",textAlign:"center",lineHeight:1.5}}>Or add them manually per account in the Accounts tab.</div>
+              <div style={{fontSize:"14px",color:"#948a74",marginTop:"8px",textAlign:"center",lineHeight:1.5}}>Or add manually in Accounts.</div>
             </React.Fragment>)}
-        {isAdmin&&<button className="btn" onClick={()=>mutate(d=>{ d.tournament={phase:"idle"}; return d; })} style={{width:"100%",marginTop:"12px",padding:"10px",background:"transparent",border:"1px solid #2a5a3a",borderRadius:"9px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"16px"}}>Start a new tournament (this one stays in Past tournaments)</button>}
+        {isAdmin&&<button className="btn" onClick={()=>mutate(d=>{ d.tournament={phase:"idle"}; return d; })} style={{width:"100%",marginTop:"12px",padding:"10px",background:"transparent",border:"1px solid #2a5a3a",borderRadius:"9px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"16px"}}>Start a new tournament</button>}
       </div>}
     </div>;
   }
@@ -1722,10 +1722,10 @@ function Tournament({data,me,role,mutate}){
     {rounds.map((x,i)=>i).reverse().map(ri=>{ const rd=rounds[ri]||{matches:[]}; const isCur=ri===t.round-1; return (
     <div key={"rr"+ri} style={box}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
-        <div style={sLbl}>Round {ri+1} matches{isCur?"":" (earlier round, staff can still fix results)"}</div>
+        <div style={sLbl}>Round {ri+1} matches{isCur?"":""}</div>
         {isAdmin&&t.phase==="swiss"&&<button className="btn" onClick={()=>{ if(pairEditRi===ri){ setPairEditRi(null); setPairSel(null); } else { setPairEditRi(ri); setPairSel(null); } }} style={{padding:"5px 10px",background:pairEditRi===ri?"#1a1400":"transparent",border:"1px solid "+(pairEditRi===ri?"#c8a96e":"#3a3a3a"),borderRadius:"6px",color:pairEditRi===ri?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px",flexShrink:0}}>{pairEditRi===ri?"Done editing":"Edit pairings"}</button>}
       </div>
-      {pairEditRi===ri&&<div style={{fontSize:"14px",color:"#948a74",marginBottom:"8px",lineHeight:1.5}}>Tap two names to swap them. A match whose players change is reset to unreported. Works in any round, including played ones.</div>}
+      {pairEditRi===ri&&<div style={{fontSize:"14px",color:"#948a74",marginBottom:"8px",lineHeight:1.5}}>Tap two names to swap.</div>}
       {rd.matches.map((m,mi)=>{
         const mine=me&&(m.a===me||m.b===me);
         const slot=(side)=>{ const nm=m[side]; const on=pairEditRi===ri; const selHere=pairSel&&pairSel.mi===mi&&pairSel.side===side;
@@ -1736,11 +1736,11 @@ function Tournament({data,me,role,mutate}){
         return (
           <div key={mi} style={{padding:"10px 0",borderBottom:"1px solid #c8a96e10"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",flexWrap:"wrap"}}>
-              <div style={{fontSize:"20px",color:C.text}}>{slot("a")} <span style={{color:C.muted,fontSize:"17px"}}>vs</span> {slot("b")}{m.rematch?<span style={{fontSize:"13px",color:"#8a8172",marginLeft:"7px"}}>rematch, no other pairing was possible</span>:null}</div>
+              <div style={{fontSize:"20px",color:C.text}}>{slot("a")} <span style={{color:C.muted,fontSize:"17px"}}>vs</span> {slot("b")}{m.rematch?<span style={{fontSize:"13px",color:"#8a8172",marginLeft:"7px"}}>rematch</span>:null}</div>
               {m.confirmed
                 ? <span style={{fontSize:"17px",color:"#6ac68a",fontFamily:"'Cinzel',serif"}}>{m.winner} won</span>
-                : conflict? <span style={{fontSize:"16px",color:"#e07a7a",fontFamily:"'Cinzel',serif"}}>conflict - staff resolves</span>
-                : (ra||rb)? <span style={{fontSize:"16px",color:"#e0b040",fontFamily:"'Cinzel',serif"}}>reported: {ra||rb} won - waiting</span>
+                : conflict? <span style={{fontSize:"16px",color:"#e07a7a",fontFamily:"'Cinzel',serif"}}>conflict</span>
+                : (ra||rb)? <span style={{fontSize:"16px",color:"#e0b040",fontFamily:"'Cinzel',serif"}}>reported: {ra||rb}</span>
                 : <span style={{fontSize:"16px",color:C.muted}}>not reported</span>}
             </div>
             {mine&&isCur&&!m.confirmed&&<div style={{display:"flex",gap:"7px",marginTop:"8px"}}>
@@ -1769,7 +1769,6 @@ function Tournament({data,me,role,mutate}){
       <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"13px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
         <span style={{width:"20px"}}>#</span><span style={{flex:1}}>Player</span><span style={{fontSize:"12px"}}>Bh · Sk</span><span style={{minWidth:"46px",textAlign:"right"}}>W-L</span>
       </div>
-      <div style={{fontSize:"12px",color:"#6f6a5e",padding:"4px 0 2px 0",lineHeight:1.5}}>Bh (Buchholz) = sum of your opponents wins, minus your weakest opponent. Sk (Solkoff) = the full sum of your opponents wins. Sk is always at least Bh. A bye counts as a win but adds no opponent to either number.</div>
       {stand.map((n,i)=>{ const uu=data.users[n]||{};
         return (
         <div key={n} style={{padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
@@ -1793,7 +1792,7 @@ function Tournament({data,me,role,mutate}){
         </div>}
         </div>
       ); })}
-      <div style={{fontSize:"15px",color:"#948a74",marginTop:"8px",lineHeight:1.5}}>Sorted by wins, then Buchholz (Bh), Solkoff (Sk), head-to-head. Admins can nudge with ▲▼ to break any remaining tie manually. Top 8 advance to the Triangle bracket.</div>
+      <div style={{fontSize:"15px",color:"#948a74",marginTop:"8px",lineHeight:1.5}}>Sorted by wins, then tiebreakers. Use ▲▼ to settle a remaining tie. Top 8 advance to the Triangle.</div>
     </div>
   </div>;
 }
