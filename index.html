@@ -129,7 +129,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=66;
+const BUILD=67;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -1251,8 +1251,11 @@ function archiveTournament(d){
   const ord=standing(tt.players||[],rc,tt.rounds||[]);
   const sA=tt.season||d.season||1, wkA=tt.week||d.week||1;
   const snap={ date:Date.now(), s:sA, wk:wkA, name:tt.name||"", server:tt.server||"", champion:tt.champion||null, placements:tt.placements||{}, standings: ord.map(function(u){ const uu=(d.users&&d.users[u])||{}; return {name:u, riotId:uu.riotId||"", w:rc[u].w, l:rc[u].l, deck:(uu.deck&&uu.deck.length)?encodeDeck(uu.deck):"" }; }) };
-  (tt.rounds||[]).forEach((rd,ri)=>{ (rd.matches||[]).forEach(m=>{ logStat(d,"matches",{s:sA,wk:wkA,stage:"Swiss",round:ri+1,a:m.a||"",b:m.b||"",winner:m.winner||"",bye:m.bye?1:0,t:Date.now()}); }); });
-  if(tt.tri){ Object.keys(tt.tri).forEach(k=>{ const m=tt.tri[k]; if(m&&(m.a||m.b)) logStat(d,"matches",{s:sA,wk:wkA,stage:"Triangle",round:k,a:m.a||"",b:m.b||"",winner:m.winner||"",bye:((m.a&&!m.b)||(!m.a&&m.b))?1:0,t:Date.now()}); }); }
+  const mlist=[];
+  (tt.rounds||[]).forEach((rd,ri)=>{ (rd.matches||[]).forEach(m=>{ mlist.push({st:"Swiss",r:ri+1,a:m.a||"",b:m.b||"",winner:m.winner||"",bye:m.bye?1:0}); }); });
+  if(tt.tri){ ["A1","A2","A3","A4","B1","B2","B3","C1","C2","D1"].forEach(k=>{ const m=tt.tri[k]; if(m&&(m.a||m.b)) mlist.push({st:"Triangle",r:k,a:m.a||"",b:m.b||"",winner:m.winner||"",bye:((m.a&&!m.b)||(!m.a&&m.b))?1:0}); }); }
+  snap.matches=mlist;
+  mlist.forEach(m=>{ logStat(d,"matches",{s:sA,wk:wkA,stage:m.st,round:m.r,a:m.a,b:m.b,winner:m.winner,bye:m.bye,t:Date.now()}); });
   d.history.unshift(snap);
   if(d.history.length>30) d.history=d.history.slice(0,30);
   tt.archived=true;
@@ -1335,6 +1338,10 @@ function Tournament({data,me,role,mutate}){
   const [kickArm,setKickArm]=useState(null);
   const [resetArm,setResetArm]=useState(false);
   const [triEditArm,setTriEditArm]=useState(null);
+  const [pairEditRi,setPairEditRi]=useState(null);
+  const [pairSel,setPairSel]=useState(null);
+  const [seedEdit,setSeedEdit]=useState(false);
+  const [seedSel,setSeedSel]=useState(null);
   const [delHistArm,setDelHistArm]=useState(null);
   useEffect(()=>{ const id=setInterval(()=>setNowTs(Date.now()),30000); return ()=>clearInterval(id); },[]);
   function openTournament(){ mutate(d=>{ d.tournament={phase:"signup",name:"",server:"EMEA",startTime:Date.now()+2*3600000,signups:{},checkin:{}}; return d; }); }
@@ -1377,6 +1384,51 @@ function Tournament({data,me,role,mutate}){
       if(tt.tri.D1&&tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); }
     }
     return d; }); setKickArm(null); }
+  function swapSeed(p1,p2){ mutate(d=>{ const tt=d.tournament; if(!tt||tt.phase!=="triangle"||!tt.tri) return d;
+    const g=p=>tt.tri[p.k]?tt.tri[p.k][p.side]:undefined;
+    const s=(p,v)=>{ tt.tri[p.k][p.side]=v; };
+    const A=g(p1), B=g(p2); if(A===undefined&&B===undefined) return d; if(p1.k===p2.k&&p1.side===p2.side) return d;
+    s(p1,B===undefined?null:B); s(p2,A===undefined?null:A);
+    const touched={}; touched[p1.k]=1; touched[p2.k]=1;
+    const toClear={}; Object.keys(touched).forEach(k=>{ toClear[k]=1; triDesc(k).forEach(dk=>{ toClear[dk]=1; }); });
+    Object.keys(toClear).forEach(k=>{ const m=tt.tri[k]; if(!m) return; m.confirmed=false; m.winner=null; m.reports={}; if(m.report) delete m.report; if(m.kick) delete m.kick; if(m.vs) delete m.vs; });
+    /* A-round byes settle immediately */
+    ["A1","A2","A3","A4"].forEach(k=>{ const m=tt.tri[k]; if(!m||m.confirmed) return; if(m.a&&!m.b){ m.winner=m.a; m.confirmed=true; } else if(!m.a&&m.b){ m.winner=m.b; m.confirmed=true; } else if(!m.a&&!m.b){ m.winner=null; m.confirmed=true; } });
+    triRecompute(tt.tri);
+    if(Object.keys(tt.kicked||{}).length) settleKicksTri(tt);
+    return d; }); setSeedSel(null); }
+  function swapSlots(ri,p1,p2){ mutate(d=>{ const tt=d.tournament; const rd=tt&&tt.rounds&&tt.rounds[ri]; if(!rd) return d;
+    const g=p=>rd.matches[p.mi]?rd.matches[p.mi][p.side]:undefined;
+    const s=(p,v)=>{ rd.matches[p.mi][p.side]=v; };
+    const A=g(p1), B=g(p2); if(A===undefined||B===undefined||(p1.mi===p2.mi&&p1.side===p2.side)) return d;
+    s(p1,B); s(p2,A);
+    const mis={}; mis[p1.mi]=1; mis[p2.mi]=1;
+    Object.keys(mis).forEach(k=>{ const m=rd.matches[k];
+      if(m.bye){ m.winner=m.a; m.confirmed=true; m.report=null; m.reports={}; }
+      else { m.winner=null; m.confirmed=false; m.report=null; m.reports={}; delete m.kick; delete m.vs; }
+    });
+    return d; }); setPairSel(null); }
+  function histMatches(h){
+    if(h.matches) return h.matches;
+    /* older archives: rebuild from the statistics log for that season+week */
+    return (((data.stats&&data.stats.matches)||[]).filter(e=>((typeof e.s==="number")?e.s:1)===(h.s||1)&&(e.wk||0)===(h.wk||0)).map(e=>({st:e.stage,r:e.round,a:e.a||"",b:e.b||"",winner:e.winner||"",bye:e.bye?1:0})));
+  }
+  function editHist(hi,mi,w){ mutate(d=>{ const h=(d.history||[])[hi]; if(!h) return d;
+    if(!h.matches){ h.matches=(((d.stats&&d.stats.matches)||[]).filter(e=>((typeof e.s==="number")?e.s:1)===(h.s||1)&&(e.wk||0)===(h.wk||0)).map(e=>({st:e.stage,r:e.round,a:e.a||"",b:e.b||"",winner:e.winner||"",bye:e.bye?1:0}))); }
+    const m=h.matches[mi]; if(!m||m.bye||!m.a||!m.b) return d;
+    m.winner=w;
+    /* standings W-L recomputed from the edited match list, order re-sorted by wins (stable) */
+    const wl={}; (h.standings||[]).forEach(p=>{ wl[p.name]={w:0,l:0}; });
+    h.matches.forEach(x=>{ if(!x.winner) return; if(x.bye){ if(wl[x.a]) wl[x.a].w++; return; } const L=x.a===x.winner?x.b:x.a; if(wl[x.winner]) wl[x.winner].w++; if(wl[L]) wl[L].l++; });
+    h.standings=(h.standings||[]).map(p=>Object.assign({},p,{w:(wl[p.name]||{w:0}).w,l:(wl[p.name]||{l:0}).l})).sort((p,q)=>q.w-p.w);
+    /* champion + placements from the Triangle finals if present */
+    const tri={}; h.matches.forEach(x=>{ if(x.st==="Triangle") tri[x.r]=x; });
+    if(Object.keys(tri).length){ const W=k=>(tri[k]&&tri[k].winner)?tri[k].winner:null; h.champion=W("A1"); h.placements={1:W("A1"),2:W("B1"),3:W("C1"),4:W("D1")}; }
+    /* keep the statistics log in sync so exports match the archive */
+    const sm=(d.stats&&d.stats.matches)||[];
+    const hit=sm.find(e=>((typeof e.s==="number")?e.s:1)===(h.s||1)&&(e.wk||0)===(h.wk||0)&&e.stage===m.st&&String(e.round)===String(m.r)&&e.a===m.a&&e.b===m.b);
+    if(hit) hit.winner=w;
+    return d; }); }
   function endTournament(){ mutate(d=>{ const tt=d.tournament; if(!tt||(tt.phase!=="triangle"&&tt.phase!=="swiss")) return d; finishTournamentD(d); return d; }); setEndArm(false); }
   function triDesc(key){ const out=[]; const q=[key]; while(q.length){ const cur=q.shift(); Object.keys(TRI_DEPS).forEach(ck=>{ if(TRI_DEPS[ck].some(dep=>dep[1]===cur)&&out.indexOf(ck)<0){ out.push(ck); q.push(ck); } }); } return out; }
   function editTri(k){ mutate(d=>{ const tt=d.tournament; if(!tt||tt.phase!=="triangle"||!tt.tri) return d;
@@ -1414,6 +1466,33 @@ function Tournament({data,me,role,mutate}){
               </div>
             ))}
           </div>
+          {(()=>{ const dm=histMatches(detail); if(!dm.length) return null;
+            const swissR=Array.from(new Set(dm.filter(m=>m.st==="Swiss").map(m=>m.r))).sort((a,b)=>a-b);
+            const triOrder=["A1","A2","A3","A4","B1","B2","B3","C1","C2","D1"];
+            const row=(m,mi)=>{
+              if(m.bye) return <div key={mi} style={{padding:"7px 0",borderBottom:"1px solid #c8a96e10",fontSize:"16px",color:C.muted}}><strong style={{color:C.text}}>{m.a}</strong> free win</div>;
+              if(!m.a&&!m.b) return null;
+              return <div key={mi} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",flexWrap:"wrap",padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
+                <div style={{fontSize:"17px",color:C.text}}><strong style={{color:m.winner===m.a?"#6ac68a":C.text}}>{m.a}</strong> <span style={{color:C.muted,fontSize:"15px"}}>vs</span> <strong style={{color:m.winner===m.b?"#6ac68a":C.text}}>{m.b||"-"}</strong></div>
+                {isAdmin&&m.a&&m.b
+                  ? <div style={{display:"flex",gap:"5px"}}>
+                      <button className="btn" onClick={()=>editHist(histSel,mi,m.a)} style={{padding:"3px 9px",background:m.winner===m.a?"#0d1a12":"transparent",border:"1px solid "+(m.winner===m.a?"#2a5a3a":"#3a3a3a"),borderRadius:"6px",color:m.winner===m.a?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px"}}>{m.a} won</button>
+                      <button className="btn" onClick={()=>editHist(histSel,mi,m.b)} style={{padding:"3px 9px",background:m.winner===m.b?"#0d1a12":"transparent",border:"1px solid "+(m.winner===m.b?"#2a5a3a":"#3a3a3a"),borderRadius:"6px",color:m.winner===m.b?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px"}}>{m.b} won</button>
+                    </div>
+                  : <span style={{fontSize:"15px",color:m.winner?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif"}}>{m.winner?m.winner+" won":"not played"}</span>}
+              </div>; };
+            return <div style={box}>
+              <div style={{...sLbl,marginBottom:"10px"}}>All matches</div>
+              {swissR.map(r=><div key={"sr"+r}>
+                <div style={{fontSize:"14px",color:"#948a74",fontFamily:"'Cinzel',serif",letterSpacing:".05em",margin:"8px 0 2px"}}>Swiss round {r}</div>
+                {dm.map((m,mi)=>m.st==="Swiss"&&m.r===r?row(m,mi):null)}
+              </div>)}
+              {dm.some(m=>m.st==="Triangle")&&<div>
+                <div style={{fontSize:"14px",color:"#948a74",fontFamily:"'Cinzel',serif",letterSpacing:".05em",margin:"10px 0 2px"}}>Triangle</div>
+                {triOrder.map(k=>{ const mi=dm.findIndex(m=>m.st==="Triangle"&&m.r===k); return mi>=0?<div key={k} style={{display:"flex",gap:"8px",alignItems:"baseline"}}><span style={{width:"26px",fontSize:"13px",color:"#6f6a5e",fontFamily:"'Cinzel',serif"}}>{k}</span><div style={{flex:1}}>{row(dm[mi],mi)}</div></div>:null; })}
+              </div>}
+              {isAdmin&&<div style={{fontSize:"13px",color:"#7a7264",marginTop:"10px",lineHeight:1.5}}>Changing a result here updates the standings, the champion and placements, and the statistics exports. Aphrodite Points already paid out are not adjusted automatically.</div>}
+            </div>; })()}
         </React.Fragment>
       : <React.Fragment>
           {hist.length===0 && <div style={{...box,textAlign:"center",color:C.muted,fontSize:"17px"}}>No past tournaments yet. Finished tournaments appear here.</div>}
@@ -1435,11 +1514,28 @@ function Tournament({data,me,role,mutate}){
     }</div>;
   }
 
+  const swissRoundsBox=((t.phase==="triangle"||t.phase==="done")&&(t.rounds||[]).some(rd=>(rd.matches||[]).length))?(
+    <div style={box}>
+      <div style={{...sLbl,marginBottom:"10px"}}>Swiss rounds (played earlier in this tournament)</div>
+      {(t.rounds||[]).map((rd,ri)=><div key={"h"+ri}>
+        <div style={{fontSize:"14px",color:"#948a74",fontFamily:"'Cinzel',serif",letterSpacing:".05em",margin:"8px 0 2px"}}>Round {ri+1}</div>
+        {(rd.matches||[]).map((m,mi)=>{
+          if(m.bye) return <div key={mi} style={{padding:"7px 0",borderBottom:"1px solid #c8a96e10",fontSize:"16px",color:C.muted}}><strong style={{color:C.text}}>{m.a}</strong> has a bye (free win{m.kick&&m.vs?", "+m.vs+" was removed":""})</div>;
+          return <div key={mi} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",flexWrap:"wrap",padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
+            <div style={{fontSize:"17px",color:C.text}}><strong style={{color:m.confirmed&&m.winner===m.a?"#6ac68a":C.text}}>{m.a}</strong> <span style={{color:C.muted,fontSize:"15px"}}>vs</span> <strong style={{color:m.confirmed&&m.winner===m.b?"#6ac68a":C.text}}>{m.b}</strong></div>
+            <span style={{fontSize:"15px",color:m.confirmed?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif"}}>{m.confirmed?(m.winner+" won"):"not played"}</span>
+          </div>;
+        })}
+      </div>)}
+    </div>
+  ):null;
   const finishBox=((t.phase==="triangle"||t.phase==="swiss")&&isAdmin)?(
 <div style={box}>
         <div style={{...sLbl,marginBottom:"6px"}}>Finish this tournament</div>
         <div style={{fontSize:"15px",color:C.muted,marginBottom:"10px",lineHeight:1.5}}>Locks the placements from the matches confirmed so far and archives the tournament so anyone can browse it under Past tournaments. Use this when the remaining matches will not be played.</div>
         <button className="btn" onClick={()=>endArm?endTournament():setEndArm(true)} style={{width:"100%",padding:"11px",background:endArm?"#1a3a1a":"#0d1a12",border:"1px solid "+(endArm?"#4a8a4a":"#2a5a3a"),borderRadius:"8px",color:endArm?"#a8d8a8":"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:700}}>{endArm?"Confirm: end and archive now":"End this tournament"}</button>
+        {t.phase==="triangle"&&<button className="btn" onClick={()=>{ setSeedEdit(!seedEdit); setSeedSel(null); }} style={{width:"100%",marginTop:"10px",padding:"9px",background:seedEdit?"#1a1400":"transparent",border:"1px solid "+(seedEdit?"#c8a96e":"#3a3a3a"),borderRadius:"8px",color:seedEdit?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{seedEdit?"Done editing seeding":"Edit seeding (swap players in the A round)"}</button>}
+        {seedEdit&&<div style={{fontSize:"14px",color:"#948a74",marginTop:"7px",lineHeight:1.5}}>Tap two slots in the A matches to swap them. Results of changed matches and everything that follows from them are cleared and can be replayed.</div>}
         {t.phase==="triangle"&&(t.players||[]).length>0&&<div style={{marginTop:"12px",borderTop:"1px solid #ffffff12",paddingTop:"10px"}}>
           <div style={{fontSize:"14px",color:"#948a74",marginBottom:"7px",fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>Remove a player (their unplayed matches become walkovers)</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:"7px"}}>
@@ -1542,7 +1638,14 @@ function Tournament({data,me,role,mutate}){
   if(t.phase==="triangle" || t.phase==="done"){
     const tri=t.tri||{};
     const nm=n=>n||"-";
-    const nameCell=(k,nm)=>{ const m=tri[k]; if(!nm) return <div style={{padding:"5px 6px",borderRadius:"5px",background:"#0a0b10",border:"1px solid #1a1a1a",color:"#3a3a3a",fontSize:"16px"}}>-</div>;
+    const nameCell=(k,nm)=>{ const m=tri[k];
+      const isA=k.charAt(0)==="A";
+      if(seedEdit&&isA){
+        const sd=(m&&m.a===nm)?"a":((m&&m.b===nm)?"b":(nm==null?(m&&m.a==null&&!(seedSel&&seedSel.k===k&&seedSel.side==="a")?"a":"b"):null));
+        const here=seedSel&&seedSel.k===k&&seedSel.side===sd;
+        return <div className="btn" onClick={()=>{ const p={k:k,side:sd}; if(!seedSel){ setSeedSel(p); } else { swapSeed(seedSel,p); } }} style={{padding:"5px 7px",borderRadius:"5px",background:here?C.gold:"#1a1400",border:"1px solid #c8a96e",color:here?C.bg:(nm?C.gold:"#948a74"),fontSize:"16px",cursor:"pointer",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nm||"(empty)"}</div>;
+      }
+      if(!nm) return <div style={{padding:"5px 6px",borderRadius:"5px",background:"#0a0b10",border:"1px solid #1a1a1a",color:"#3a3a3a",fontSize:"16px"}}>-</div>;
       const won=m.confirmed&&m.winner===nm; const pend=!m.confirmed&&m.reports&&((m.reports[m.a]===nm)||(m.reports[m.b]===nm)); const mine=me&&(m.a===me||m.b===me); const clickable=m.a&&m.b&&!m.confirmed&&(mine||isAdmin);
       const onClick=clickable?()=>{ if(isAdmin) setTriWinner(k,nm); else reportTri(k,nm); }:undefined;
       return <div onClick={onClick} className={clickable?"btn":""} style={{padding:"5px 7px",borderRadius:"5px",background:won?"#173217":pend?"#2a2400":"#0d0f18",border:"1px solid "+(won?"#3a6a3a":pend?"#5a4a1a":"#262626"),color:won?"#9d9":pend?"#e0b040":(nm===me?C.gold:C.text),fontSize:"16px",cursor:clickable?"pointer":"default",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontWeight:nm===me?600:400}}>{nm}</div>; };
@@ -1582,6 +1685,7 @@ function Tournament({data,me,role,mutate}){
           {["A4","B3","C2","D1"].map(loseBox)}
         </div>
       </div>
+      {swissRoundsBox}
       {finishBox}
       {t.phase==="done"&&<div style={box}>
         <div style={{...sLbl,marginBottom:"10px"}}>Final placements · Aphrodite Points</div>
@@ -1617,15 +1721,22 @@ function Tournament({data,me,role,mutate}){
 
     {rounds.map((x,i)=>i).reverse().map(ri=>{ const rd=rounds[ri]||{matches:[]}; const isCur=ri===t.round-1; return (
     <div key={"rr"+ri} style={box}>
-      <div style={{...sLbl,marginBottom:"10px"}}>Round {ri+1} matches{isCur?"":" (earlier round, staff can still fix results)"}</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
+        <div style={sLbl}>Round {ri+1} matches{isCur?"":" (earlier round, staff can still fix results)"}</div>
+        {isAdmin&&t.phase==="swiss"&&<button className="btn" onClick={()=>{ if(pairEditRi===ri){ setPairEditRi(null); setPairSel(null); } else { setPairEditRi(ri); setPairSel(null); } }} style={{padding:"5px 10px",background:pairEditRi===ri?"#1a1400":"transparent",border:"1px solid "+(pairEditRi===ri?"#c8a96e":"#3a3a3a"),borderRadius:"6px",color:pairEditRi===ri?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px",flexShrink:0}}>{pairEditRi===ri?"Done editing":"Edit pairings"}</button>}
+      </div>
+      {pairEditRi===ri&&<div style={{fontSize:"14px",color:"#948a74",marginBottom:"8px",lineHeight:1.5}}>Tap two names to swap them. A match whose players change is reset to unreported. Works in any round, including played ones.</div>}
       {rd.matches.map((m,mi)=>{
         const mine=me&&(m.a===me||m.b===me);
-        if(m.bye) return <div key={mi} style={{padding:"9px 0",borderBottom:"1px solid #c8a96e10",fontSize:"18px",color:C.muted}}><strong style={{color:C.text}}>{m.a}</strong> has a bye (free win{m.kick&&m.vs?", "+m.vs+" was removed":""})</div>;
+        const slot=(side)=>{ const nm=m[side]; const on=pairEditRi===ri; const selHere=pairSel&&pairSel.mi===mi&&pairSel.side===side;
+          if(!on) return <strong style={{color:m.confirmed&&m.winner===nm?"#6ac68a":C.text}}>{nm}</strong>;
+          return <strong className="btn" onClick={()=>{ if(!pairSel){ setPairSel({mi:mi,side:side}); } else { swapSlots(ri,pairSel,{mi:mi,side:side}); } }} style={{color:selHere?C.bg:(m.confirmed&&m.winner===nm?"#6ac68a":C.gold),background:selHere?C.gold:"#1a1400",border:"1px solid #c8a96e",borderRadius:"6px",padding:"2px 8px",cursor:"pointer"}}>{nm||"(empty)"}</strong>; };
+        if(m.bye) return <div key={mi} style={{padding:"9px 0",borderBottom:"1px solid #c8a96e10",fontSize:"18px",color:C.muted}}>{slot("a")} has a bye (free win{m.kick&&m.vs?", "+m.vs+" was removed":""})</div>;
         const ra=m.reports&&m.reports[m.a]; const rb=m.reports&&m.reports[m.b]; const conflict=ra&&rb&&ra!==rb; const myRep=(m.reports&&me)?m.reports[me]:null;
         return (
           <div key={mi} style={{padding:"10px 0",borderBottom:"1px solid #c8a96e10"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",flexWrap:"wrap"}}>
-              <div style={{fontSize:"20px",color:C.text}}><strong style={{color:m.confirmed&&m.winner===m.a?"#6ac68a":C.text}}>{m.a}</strong> <span style={{color:C.muted,fontSize:"17px"}}>vs</span> <strong style={{color:m.confirmed&&m.winner===m.b?"#6ac68a":C.text}}>{m.b}</strong>{m.rematch?<span style={{fontSize:"13px",color:"#8a8172",marginLeft:"7px"}}>rematch, no other pairing was possible</span>:null}</div>
+              <div style={{fontSize:"20px",color:C.text}}>{slot("a")} <span style={{color:C.muted,fontSize:"17px"}}>vs</span> {slot("b")}{m.rematch?<span style={{fontSize:"13px",color:"#8a8172",marginLeft:"7px"}}>rematch, no other pairing was possible</span>:null}</div>
               {m.confirmed
                 ? <span style={{fontSize:"17px",color:"#6ac68a",fontFamily:"'Cinzel',serif"}}>{m.winner} won</span>
                 : conflict? <span style={{fontSize:"16px",color:"#e07a7a",fontFamily:"'Cinzel',serif"}}>conflict - staff resolves</span>
@@ -1764,8 +1875,12 @@ function App(){
   function mutate(fn){
     setData(prev=>{
       const next=fn(JSON.parse(JSON.stringify(prev||SEED)));
-      if(stateRef) stateRef.set(next);
-      return next;
+      /* sanitize before persisting: RTDB rejects any value containing undefined and rolls the
+         optimistic local write back to the server state, which shows as a change that reverts.
+         A JSON round-trip drops undefined so the write always commits; state mirrors what is saved. */
+      const clean=JSON.parse(JSON.stringify(next));
+      if(stateRef){ try{ stateRef.set(clean); }catch(e){ console.error("save failed:",e&&e.message); } }
+      return clean;
     });
   }
   function login(n){ setMe(n); try{sessionStorage.setItem("at_me",n);}catch(e){} }
