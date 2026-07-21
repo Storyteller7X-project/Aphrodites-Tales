@@ -119,6 +119,20 @@ async function pwHash(user,plain){
   return "pbkdf2:"+bufToHex(bits);
 }
 function isHashed(s){ return typeof s==="string" && s.indexOf("pbkdf2:")===0; }
+function diffPaths(a,b,base,out){
+  if(a===b) return;
+  /* recurse into plain objects so each player writes only their own leaves; arrays (decks, stats,
+     history) are written whole at their path to avoid sparse-array holes in RTDB. */
+  const ao=a&&typeof a==="object"&&!Array.isArray(a);
+  const bo=b&&typeof b==="object"&&!Array.isArray(b);
+  if(ao&&bo){
+    const keys={}; for(const k in a) keys[k]=1; for(const k in b) keys[k]=1;
+    for(const k in keys){ const p=base?base+"/"+k:k;
+      if(!(k in b)) out[p]=null;
+      else if(!(k in a)) out[p]=b[k];
+      else diffPaths(a[k],b[k],p,out); }
+  } else if(JSON.stringify(a)!==JSON.stringify(b)){ out[base]=(b===undefined?null:b); }
+}
 async function pwVerify(user,plain,stored){
   if(!stored) return false;
   if(!isHashed(stored)) return String(plain)===String(stored);
@@ -129,7 +143,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=69;
+const BUILD=71;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -1820,36 +1834,39 @@ function App(){
     function handle(snap){
       const val=snap.val();
       if(val===null){ stateRef.set(SEED); return; }
+      /* migrations write only the specific paths they change, via update(), never the whole tree.
+         a full-tree set() here would race with the player's own writes (deck, starter, coins) and
+         could roll their progress back to an older snapshot. */
       if(!val.testSeeded){
-        const nu=JSON.parse(JSON.stringify(val)); if(!nu.users) nu.users={};
-        for(let i=1;i<=8;i++){ const n="Test"+i; if(!nu.users[n]) nu.users[n]=freshTest(); }
-        nu.testSeeded=true; stateRef.set(nu); return;
+        const up={testSeeded:true};
+        for(let i=1;i<=8;i++){ const n="Test"+i; if(!val.users||!val.users[n]) up["users/"+n]=freshTest(); }
+        stateRef.update(up); return;
       }
       if(val.users && val.users.Storyteller && val.users.Storyteller.password==="5r2w"){
-        const nu=JSON.parse(JSON.stringify(val)); nu.users.Storyteller.password=ADMIN_PW; stateRef.set(nu); return;
+        stateRef.update({"users/Storyteller/password":ADMIN_PW}); return;
       }
       if(val.users && !val.modSeeded){
-        const nu=JSON.parse(JSON.stringify(val)); if(!nu.users.Aphrodite) nu.users.Aphrodite=freshMod(); nu.modSeeded=true; stateRef.set(nu); return;
+        const up={modSeeded:true}; if(!val.users.Aphrodite) up["users/Aphrodite"]=freshMod();
+        stateRef.update(up); return;
       }
       if(val.users && val.users.Aphrodite && val.users.Aphrodite.role==="mod"){
-        const nu=JSON.parse(JSON.stringify(val)); nu.users.Aphrodite.role="admin"; stateRef.set(nu); return;
+        stateRef.update({"users/Aphrodite/role":"admin"}); return;
       }
       if(val.users){
         const noAcc=Object.keys(val.users).filter(n=>val.users[n].accId==null);
         if(noAcc.length){
-          const nu=JSON.parse(JSON.stringify(val)); let mx=0;
-          Object.keys(nu.users).forEach(n=>{ const a=nu.users[n].accId; if(typeof a==="number"&&a>mx)mx=a; });
-          noAcc.sort().forEach(n=>{ mx++; nu.users[n].accId=mx; });
-          nu.accSeq=mx; stateRef.set(nu); return;
+          let mx=0; Object.keys(val.users).forEach(n=>{ const a=val.users[n].accId; if(typeof a==="number"&&a>mx)mx=a; });
+          const up={}; noAcc.sort().forEach(n=>{ mx++; up["users/"+n+"/accId"]=mx; }); up.accSeq=mx;
+          stateRef.update(up); return;
         }
       }
       const plain=Object.keys(val.users||{}).filter(n=>val.users[n].password && !isHashed(val.users[n].password));
       if(plain.length && subtleOK()){
         (async ()=>{
           try{
-            const nu=JSON.parse(JSON.stringify(val));
-            for(let i=0;i<plain.length;i++){ const n=plain[i]; nu.users[n].password=await pwHash(n,nu.users[n].password); }
-            stateRef.set(nu);
+            const up={};
+            for(let i=0;i<plain.length;i++){ const n=plain[i]; up["users/"+n+"/password"]=await pwHash(n,val.users[n].password); }
+            stateRef.update(up);
           }catch(e){ console.error("Password migration failed:",e); setData(val); }
         })();
         return;
@@ -1873,12 +1890,20 @@ function App(){
 
   function mutate(fn){
     setData(prev=>{
-      const next=fn(JSON.parse(JSON.stringify(prev||SEED)));
-      /* sanitize before persisting: RTDB rejects any value containing undefined and rolls the
-         optimistic local write back to the server state, which shows as a change that reverts.
-         A JSON round-trip drops undefined so the write always commits; state mirrors what is saved. */
+      const base=JSON.parse(JSON.stringify(prev||SEED));
+      const next=fn(JSON.parse(JSON.stringify(base)));
+      /* sanitize: RTDB rejects undefined and would roll the whole write back (a change that reverts). */
       const clean=JSON.parse(JSON.stringify(next));
-      if(stateRef){ try{ stateRef.set(clean); }catch(e){ console.error("save failed:",e&&e.message); } }
+      if(stateRef){
+        try{
+          /* write ONLY the paths that changed, never the whole shared tree. With many players active,
+             a full-tree set() would carry this client's stale copy of everyone else and overwrite their
+             coins and decks. A path level diff means each player only ever touches their own subtree. */
+          const out={}; diffPaths(base,clean,"",out);
+          const keys=Object.keys(out);
+          if(keys.length){ if(keys.length>400){ stateRef.set(clean); } else { stateRef.update(out); } }
+        }catch(e){ console.error("save failed:",e&&e.message); try{ stateRef.set(clean); }catch(_e){} }
+      }
       return clean;
     });
   }
