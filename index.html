@@ -129,7 +129,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=60;
+const BUILD=66;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -361,8 +361,8 @@ function AdminHome({data,mutate,me,db,starters}){
   const seasonsAvailable=Array.from(new Set(((data.stats&&data.stats.config)||[]).map(e=>e.s).concat([data.season||1]))).sort((a,b)=>a-b);
   const players=Object.keys(data.users||{}).filter(n=>n!==me);
 
-  function setPhase(p){ mutate(d=>{ d.seasonPhase=p; d.prepEnded=(p!=="building"); if(p==="locked"){ const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"&&us[n].deck&&us[n].deck.length){ const dk=us[n].deck; const flat=[]; dk.forEach(e=>{ for(let i=0;i<(e.count||0);i++) flat.push(e.code); }); const cst=flat.map(c=>{ const cc=db&&db.by?db.by[c]:null; return cc?(cc[6]||0):0; }); const vt=cst.reduce((x,y)=>x+y,0); const so=cst.slice().sort((x,y)=>x-y); const md=cst.length?(cst.length%2?so[(cst.length-1)/2]:+((so[cst.length/2-1]+so[cst.length/2])/2).toFixed(2)):0; logStat(d,"deckLocks",{a:n,wk:d.week||1,deck:encodeDeck(dk),size:deckTotal(dk),champs:champCards(db,dk),valTotal:vt,valMean:cst.length?+(vt/cst.length).toFixed(2):0,valMedian:md,t:Date.now()}); } }); } return d; }); }
-  function newWeek(){ mutate(d=>{ d.week=(d.week||1)+1; d.prepEnded=false; d.seasonPhase="building"; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player"){ us[n].coins=(us[n].coins||0)+100; logCoin(d,n,100,"weekly"); } }); return d; }); setMsg("New week started. +100 coins to all players."); }
+  function setPhase(p){ mutate(d=>{ if(p==="building"&&d.tournament&&d.tournament.phase!=="idle"){ finishTournamentD(d); if(d.tournament.phase==="done") d.tournament={phase:"idle"}; } d.seasonPhase=p; d.prepEnded=(p!=="building"); if(p==="locked"){ const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"&&us[n].deck&&us[n].deck.length){ const dk=us[n].deck; const flat=[]; dk.forEach(e=>{ for(let i=0;i<(e.count||0);i++) flat.push(e.code); }); const cst=flat.map(c=>{ const cc=db&&db.by?db.by[c]:null; return cc?(cc[6]||0):0; }); const vt=cst.reduce((x,y)=>x+y,0); const so=cst.slice().sort((x,y)=>x-y); const md=cst.length?(cst.length%2?so[(cst.length-1)/2]:+((so[cst.length/2-1]+so[cst.length/2])/2).toFixed(2)):0; logStat(d,"deckLocks",{a:n,wk:d.week||1,deck:encodeDeck(dk),size:deckTotal(dk),champs:champCards(db,dk),valTotal:vt,valMean:cst.length?+(vt/cst.length).toFixed(2):0,valMedian:md,t:Date.now()}); } }); } return d; }); }
+  function newWeek(){ mutate(d=>{ if(d.tournament&&d.tournament.phase!=="idle"){ finishTournamentD(d); if(d.tournament.phase==="done") d.tournament={phase:"idle"}; } d.week=(d.week||1)+1; d.prepEnded=false; d.seasonPhase="building"; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player"){ us[n].coins=(us[n].coins||0)+100; logCoin(d,n,100,"weekly"); } }); return d; }); setMsg("New week started. +100 coins to all players."); }
   function delPlayer(n){ if(n===OWNER){ setDelArm(""); setMsg("The "+OWNER+" account cannot be deleted."); return; } mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
   function saveSW(){ const s=parseInt(swS,10), w=parseInt(swW,10); if(!(s>=1)||!(w>=1)){ setMsg("Season and week must be 1 or higher."); return; } mutate(d=>{ d.season=s; d.week=w; return d; }); setSwEdit(false); setMsg("Season "+s+", week "+w+" set."); }
   function resetSeason(){ mutate(d=>{ d.season=(d.season||1)+1; d.week=1; d.prepEnded=false; d.seasonPhase="building"; d.tournament={phase:"idle"}; const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"){ const old=us[n].coins||0; us[n].starter=null; us[n].deck=null; us[n].coins=100; us[n].aphro=0; logCoin(d,n,100-old,"seasonreset"); } }); return d; }); setSeasonArm(false); setMsg("Season reset. All players are back to starter deck choice."); }
@@ -377,6 +377,13 @@ function AdminHome({data,mutate,me,db,starters}){
     const starterCodesOf=e=>{ if(!e) return []; if(e.codes&&e.codes.length) return e.codes; const st=stArr.find(x=>x.name===starterNameOf(e)); return st?(st.codes||[]):[]; };
     const starterOfSeason=(n,sea)=>{ const ev=((S&&S.starters)||[]).filter(e=>e.a===n&&normS(e)===sea).slice(-1)[0]; if(ev) return starterId(starterNameOf(ev)); return (sea===(data.season||1)&&users[n])?starterId(users[n].starter):""; };
     const isStaff=n=>{ const u=users[n]; return !!(u&&u.role!=="player"); };
+    /* numeric identity: Account ID from the account record; Player ID shared by accounts with the same Discord */
+    const accIdOf=n=>{ const u=users[n]; return (u&&u.accId!=null)?u.accId:(n||""); };
+    const discOf=n=>{ const u=users[n]; return (u&&u.discordId)?String(u.discordId).trim().toLowerCase():""; };
+    const playerIdOf=(function(){ const g={}; Object.keys(users).forEach(n=>{ const k=discOf(n); if(!k)return; const a=accIdOf(n); if(typeof a==="number"&&(!(k in g)||a<g[k])) g[k]=a; }); return n=>{ const k=n?discOf(n):""; return (k&&g[k]!=null)?g[k]:accIdOf(n); }; })();
+    /* per-table sequential IDs, chronological within this export */
+    const chrono=(x,y)=>((x.id||0)-(y.id||0))||((x.t||0)-(y.t||0));
+    const seqMap=arr=>{ const m=new Map(); arr.slice().sort(chrono).forEach((e,i)=>m.set(e,i+1)); return e=>m.has(e)?m.get(e):""; };
     /* legacy deckLocks lack champs/value stats; derive them by decoding the stored deck code */
     const lockDerived=e=>{ if(!e||!e.deck) return {}; if(e.champs!=null&&e.valTotal!=null&&e.valMean!=null&&e.valMedian!=null) return e;
       const dk=decodeDeck(e.deck); if(!dk.length) return e;
@@ -472,6 +479,10 @@ function AdminHome({data,mutate,me,db,starters}){
     const seasonsList = target!=null ? [tS] : Array.from(new Set((S.config||[]).map(e=>e.s).concat([data.season||1]))).sort((a,b)=>a-b);
 
     // 1) Player Season Summary
+    const packNo=seqMap((S.packs||[]).filter(inT));
+    const buyNo=seqMap((S.buys||[]).filter(inT));
+    const remNo=seqMap((S.removals||[]).filter(inT));
+    const matchNo=seqMap((S.matches||[]).filter(inT));
     const t1=[["Season","Player ID","Account ID","Account Name","Player Name","Starter ID","Registration Week","Total Packs oepened","Total Cards picked","Total value of all cards picked","Mean value of all cards picked","Median value of all cards picked","Total cards skipped","Total value of all cards skipped","Mean value of all cards skipped","Median value of all cards skipped","Total cards bought form Store","Total value of all cards bought form Store","Mean value of all cards bought form Store","Median value of all cards bought form Store","Total removals bought","Total coins spent on removal","Mean coins spent on removal","Median coins spent on removal","Total Cards removed","Mean cards removed per removal pack","Median cards removed per removal pack","Total value of all cards removed","Mean value of all cards removed","Median value of all cards removed","Check-Ins","Matchday Top4's","Matchday Wins","Aphrodite Points","Final Placement"]];
     seasonsList.forEach(sea=>{ players.forEach(n=>{
       const pk=(S.packs||[]).filter(e=>e.a===n&&normS(e)===sea);
@@ -484,7 +495,7 @@ function AdminHome({data,mutate,me,db,starters}){
       const ci=(S.checkins||[]).filter(e=>e.a===n&&normS(e)===sea).length;
       const fins=[]; hist.filter(h=>(h.s||1)===sea).forEach(h=>Object.keys(h.placements||{}).forEach(pl=>{ if(h.placements[pl]===n) fins.push(parseInt(pl,10)); }));
       const u=users[n];
-      t1.push([sea,n,n,n,n,starterOfSeason(n,sea),(u.regSeason===sea?u.regWeek:"")||"",pk.length,picked.length,sum(picked),mean(picked),median(picked),skipped.length,sum(skipped),mean(skipped),median(skipped),buys.length,sum(bv),mean(bv),median(bv),rem.length,sum(remCost),mean(remCost),median(remCost),sum(remCounts),mean(remCounts),median(remCounts),sum(remVals),mean(remVals),median(remVals),ci,fins.length,fins.filter(p=>p===1).length,fins.reduce((x,p)=>x+apFor(p),0),fins.length?Math.min.apply(null,fins):""]);
+      t1.push([sea,playerIdOf(n),accIdOf(n),n,n,starterOfSeason(n,sea),(u.regSeason===sea?u.regWeek:"")||"",pk.length,picked.length,sum(picked),mean(picked),median(picked),skipped.length,sum(skipped),mean(skipped),median(skipped),buys.length,sum(bv),mean(bv),median(bv),rem.length,sum(remCost),mean(remCost),median(remCost),sum(remCounts),mean(remCounts),median(remCounts),sum(remVals),mean(remVals),median(remVals),ci,fins.length,fins.filter(p=>p===1).length,fins.reduce((x,p)=>x+apFor(p),0),fins.length?Math.min.apply(null,fins):""]);
     }); });
     add("Accounts & Data entire Season",t1);
 
@@ -523,28 +534,28 @@ function AdminHome({data,mutate,me,db,starters}){
       const losses=mts.filter(e=>!e.bye&&e.winner&&e.winner!==a).length;
       let placement=""; hist.filter(h=>(h.s||1)===s&&(h.wk||0)===wk).forEach(h=>Object.keys(h.placements||{}).forEach(pl=>{ if(h.placements[pl]===a){ const v=parseInt(pl,10); if(placement===""||v<placement) placement=v; } }));
       let apTot=0; hist.filter(h=>(h.s||1)===s&&(h.wk||0)<=wk).forEach(h=>Object.keys(h.placements||{}).forEach(pl=>{ if(h.placements[pl]===a) apTot+=apFor(parseInt(pl,10)); }));
-      t3.push([s,wk,a,a,ci,cStart,earned,pk.length,picked.length,spPack,sum(picked),mean(picked),median(picked),pk.filter(e=>!e.pick).length,sum(skipped),mean(skipped),median(skipped),buys.length,spStore,sum(bv),mean(bv),median(bv),rem.length,sum(rem.map(e=>e.n||0)),spRem,sum(remVals),mean(remVals),median(remVals),cEnd,dl.deck||"",dl.size!=null?dl.size:"",dl.champs!=null?dl.champs:"",dl.valTotal!=null?dl.valTotal:"",dl.valMean!=null?dl.valMean:"",dl.valMedian!=null?dl.valMedian:"",mts.length,wins,losses,byes,seed!=null?seed:"",placement,placement===""?0:apFor(placement),apTot]);
+      t3.push([s,wk,playerIdOf(a),accIdOf(a),ci,cStart,earned,pk.length,picked.length,spPack,sum(picked),mean(picked),median(picked),pk.filter(e=>!e.pick).length,sum(skipped),mean(skipped),median(skipped),buys.length,spStore,sum(bv),mean(bv),median(bv),rem.length,sum(rem.map(e=>e.n||0)),spRem,sum(remVals),mean(remVals),median(remVals),cEnd,dl.deck||"",dl.size!=null?dl.size:"",dl.champs!=null?dl.champs:"",dl.valTotal!=null?dl.valTotal:"",dl.valMean!=null?dl.valMean:"",dl.valMedian!=null?dl.valMedian:"",mts.length,wins,losses,byes,seed!=null?seed:"",placement,placement===""?0:apFor(placement),apTot]);
     });
     add("Weekly Economy",t3);
 
     // 4) Pack Opens
     const t4=[["Season","Week","Pack ID","Date","Player ID","Account ID","Region","Picked","Skipped","Cost of picked Card","Coins Before","Copies Owned Before","Deck Size Before"]];
-    (S.packs||[]).filter(inT).forEach(e=>{ const cb=e.copiesBefore!=null?e.copiesBefore:recon.copiesBefore(e); const db2=e.deckBefore!=null?e.deckBefore:recon.sizeBefore(e); t4.push([normS(e),e.wk,e.id||"",dt(e.t),e.a,e.a,e.reg,e.pick?nm(e.pick):"(took nothing)",(e.skip||[]).map(nm).join(", "),e.pick?cost(e.pick):0,e.coinsBefore!=null?e.coinsBefore:"",cb!=null?cb:"",db2!=null?db2:""]); });
+    (S.packs||[]).filter(inT).slice().sort(chrono).forEach(e=>{ const cb=e.copiesBefore!=null?e.copiesBefore:recon.copiesBefore(e); const db2=e.deckBefore!=null?e.deckBefore:recon.sizeBefore(e); t4.push([normS(e),e.wk,packNo(e),dt(e.t),playerIdOf(e.a),accIdOf(e.a),e.reg,e.pick?nm(e.pick):"(took nothing)",(e.skip||[]).map(nm).join(", "),e.pick?cost(e.pick):0,e.coinsBefore!=null?e.coinsBefore:"",cb!=null?cb:"",db2!=null?db2:""]); });
     add("Pack Opens",t4);
 
     // 5) Store Purchases
     const t5=[["Season","Week","Store Action ID","Date","Player ID","Account ID","Card ID","Cost","Coins Before","Copies Owned Before","Deck Size Before"]];
-    (S.buys||[]).filter(inT).forEach(e=>{ const cb=e.copiesBefore!=null?e.copiesBefore:recon.copiesBefore(e); const db2=e.deckBefore!=null?e.deckBefore:recon.sizeBefore(e); t5.push([normS(e),e.wk,e.id||"",dt(e.t),e.a,e.a,e.c,e.p,e.coinsBefore!=null?e.coinsBefore:"",cb!=null?cb:"",db2!=null?db2:""]); });
+    (S.buys||[]).filter(inT).slice().sort(chrono).forEach(e=>{ const cb=e.copiesBefore!=null?e.copiesBefore:recon.copiesBefore(e); const db2=e.deckBefore!=null?e.deckBefore:recon.sizeBefore(e); t5.push([normS(e),e.wk,buyNo(e),dt(e.t),playerIdOf(e.a),accIdOf(e.a),e.c,e.p,e.coinsBefore!=null?e.coinsBefore:"",cb!=null?cb:"",db2!=null?db2:""]); });
     add("Store Purchases",t5);
 
     // 6) Removal Packs
     const t6=[["Season","Week","Removal pack ID","Date","Player ID","Account ID","Removal Slots Used","Cost","Coins Before","Deck Size Before","Deck Size After"]];
-    (S.removals||[]).filter(inT).forEach(e=>{ const after=(e.after!=null)?e.after:((e.before!=null&&e.n!=null)?(e.before-e.n):""); t6.push([normS(e),e.wk,e.id||"",dt(e.t),e.a,e.a,e.n,e.cost,e.coinsBefore!=null?e.coinsBefore:"",e.before,after]); });
+    (S.removals||[]).filter(inT).slice().sort(chrono).forEach(e=>{ const after=(e.after!=null)?e.after:((e.before!=null&&e.n!=null)?(e.before-e.n):""); t6.push([normS(e),e.wk,remNo(e),dt(e.t),playerIdOf(e.a),accIdOf(e.a),e.n,e.cost,e.coinsBefore!=null?e.coinsBefore:"",e.before,after]); });
     add("Removal Purchases",t6);
 
     // 7) Individual Card Removals
     const t7=[["Season","Week","Card Removal ID","Date","Removal pack ID","Player ID","Account ID","Card ID","Quantity Removed"]];
-    (S.removals||[]).filter(inT).forEach(e=>{ const rm=recon.removedOf(e)||{}; let sub=0; Object.keys(rm).forEach(c=>{ sub++; t7.push([normS(e),e.wk,(e.id||"")+"-"+sub,dt(e.t),e.id||"",e.a,e.a,c,rm[c]]); }); });
+    let crSeq=0; (S.removals||[]).filter(inT).slice().sort(chrono).forEach(e=>{ const rm=recon.removedOf(e)||{}; Object.keys(rm).sort().forEach(c=>{ crSeq++; t7.push([normS(e),e.wk,crSeq,dt(e.t),remNo(e),playerIdOf(e.a),accIdOf(e.a),c,rm[c]]); }); });
     add("Removed Cards",t7);
 
     // 8) Card Collection (cumulative through the selected week, by source)
@@ -557,12 +568,12 @@ function AdminHome({data,mutate,me,db,starters}){
     if(perWeek) cwk=tW;
     else { let mx=0; ["packs","buys","removals","checkins","deckLocks","seeds"].forEach(cn=>(S[cn]||[]).forEach(e=>{ if(((e.s!=null?e.s:1)===(target!=null?tS:(data.season||1)))&&(e.wk||0)>mx) mx=e.wk||0; })); cwk=mx||(data.week||1); }
     const csea = target!=null?tS:(data.season||1);
-    Object.keys(coll).sort().forEach(k=>{ const p=k.split("|"); const v=coll[k]; t8.push([csea,cwk,p[0],p[0],p[1],nm(p[1]),v.st+v.pk+v.sto,v.st,v.pk,v.sto]); });
+    Object.keys(coll).sort().forEach(k=>{ const p=k.split("|"); const v=coll[k]; t8.push([csea,cwk,playerIdOf(p[0]),accIdOf(p[0]),p[1],nm(p[1]),v.st+v.pk+v.sto,v.st,v.pk,v.sto]); });
     add("Locked Deck Cards",t8);
 
     // 9) Match Log
     const t9=[["Season","Week","Match ID","Stage","Round","Player A ID","Account A ID","Player B ID","Account B ID","Winner Account ID","Bye"]];
-    (S.matches||[]).filter(inT).forEach(e=>t9.push([normS(e),e.wk,e.id||"",e.stage,e.round,e.a,e.a,e.b,e.b,e.winner,e.bye]));
+    (S.matches||[]).filter(inT).slice().sort(chrono).forEach(e=>t9.push([normS(e),e.wk,matchNo(e),e.stage,e.round,e.a?playerIdOf(e.a):"",e.a?accIdOf(e.a):"",e.b?playerIdOf(e.b):"",e.b?accIdOf(e.b):"",e.winner?accIdOf(e.winner):"",e.bye]));
     add("Matches",t9);
 
     // 10) Starter Contents (all starters for the season)
@@ -1133,15 +1144,50 @@ function computeRecords(players,rounds){
   }));
   return rec;
 }
-function buch(u,rec){ return (rec[u]&&rec[u].opps||[]).reduce((s,o)=>s+(rec[o]?rec[o].w:0),0); }
-function solk(u,rec){ const os=(rec[u]&&rec[u].opps||[]).map(o=>rec[o]?rec[o].w:0); if(!os.length)return 0; const sum=os.reduce((a,b)=>a+b,0); return sum-Math.min.apply(null,os); }
+function buch(u,rec){ const os=(rec[u]&&rec[u].opps||[]).map(o=>rec[o]?rec[o].w:0); if(!os.length)return 0; const sum=os.reduce((a,b)=>a+b,0); return sum-Math.min.apply(null,os); }
+function solk(u,rec){ return (rec[u]&&rec[u].opps||[]).reduce((s,o)=>s+(rec[o]?rec[o].w:0),0); }
 function h2h(a,b,rounds){ let r=0; (rounds||[]).forEach(rd=>(rd.matches||[]).forEach(m=>{ if(!m.confirmed||m.bye)return; if((m.a===a&&m.b===b)||(m.a===b&&m.b===a)){ if(m.winner===a)r=1; else if(m.winner===b)r=-1; } })); return r; }
 function standing(players,rec,rounds,tb){ tb=tb||{}; return players.slice().sort((x,y)=>(rec[y].w-rec[x].w)||(buch(y,rec)-buch(x,rec))||(solk(y,rec)-solk(x,rec))||(-h2h(x,y,rounds))||((tb[y]||0)-(tb[x]||0))||x.localeCompare(y)); }
 function pairRound(sorted,rec){
-  let pool=sorted.slice(); const matches=[];
-  if(pool.length%2===1){ let bi=-1; for(let i=pool.length-1;i>=0;i--){ if(!rec[pool[i]].bye){bi=i;break;} } if(bi<0)bi=pool.length-1; const bye=pool.splice(bi,1)[0]; matches.push({a:bye,b:null,winner:bye,confirmed:true,bye:true,report:null}); }
-  while(pool.length>1){ const a=pool.shift(); let idx=pool.findIndex(b=>!(rec[a].opps||[]).includes(b)); if(idx<0)idx=0; const b=pool.splice(idx,1)[0]; matches.push({a,b,winner:null,confirmed:false,report:null}); }
-  return matches;
+  /* Swiss pairing that never repeats a matchup unless it is mathematically forced.
+     Search order: 0 rematches, then 1, then 2... so the result always has the minimum possible.
+     Bye: bottom-up to a player without one; a bye choice must leave the best pairing reachable. */
+  const oppSet={}; sorted.forEach(n=>{ oppSet[n]={}; ((rec[n]&&rec[n].opps)||[]).forEach(o=>{ oppSet[n][o]=true; }); });
+  let nodes=0;
+  function solve(pool,budget){
+    if(pool.length===0) return [];
+    if(nodes++>300000) return null;
+    const a=pool[0];
+    for(let i=1;i<pool.length;i++){
+      const b=pool[i]; const cost=oppSet[a][b]?1:0;
+      if(cost>budget) continue;
+      const rest=pool.slice(1,i).concat(pool.slice(i+1));
+      const sub=solve(rest,budget-cost);
+      if(sub){ const m={a:a,b:b,winner:null,confirmed:false,report:null}; if(cost) m.rematch=true; return [m].concat(sub); }
+    }
+    return null;
+  }
+  const byeM=n=>({a:n,b:null,winner:n,confirmed:true,bye:true,report:null});
+  const pool=sorted.slice();
+  const maxB=Math.max(1,Math.floor(pool.length/2));
+  if(pool.length%2===1){
+    const rev=pool.slice().reverse();
+    const cands=rev.filter(n=>!(rec[n]&&rec[n].bye)).concat(rev.filter(n=>rec[n]&&rec[n].bye));
+    for(let k=0;k<=maxB;k++){
+      for(let ci=0;ci<cands.length;ci++){
+        nodes=0;
+        const c=cands[ci]; const mm=solve(pool.filter(x=>x!==c),k);
+        if(mm){ mm.unshift(byeM(c)); return mm; }
+      }
+    }
+    const c0=cands[0]; const rest=pool.filter(x=>x!==c0); const g=[];
+    while(rest.length>1){ g.push({a:rest.shift(),b:rest.shift(),winner:null,confirmed:false,report:null,rematch:true}); }
+    g.unshift(byeM(c0)); return g;
+  }
+  for(let k=0;k<=maxB;k++){ nodes=0; const mm=solve(pool,k); if(mm) return mm; }
+  const p=pool.slice(); const g=[];
+  while(p.length>1){ g.push({a:p.shift(),b:p.shift(),winner:null,confirmed:false,report:null,rematch:true}); }
+  return g;
 }
 const TRI_DEPS={ B1:[["l","A1"],["w","A2"]], B2:[["l","A2"],["w","A3"]], B3:[["w","A4"],["l","A3"]], C1:[["l","B1"],["w","B2"]], C2:[["l","B2"],["w","B3"]], D1:[["l","C1"],["w","C2"]] };
 const TRI_ROUNDS=[["A1","A2","A3","A4"],["B1","B2","B3"],["C1","C2"],["D1"]];
@@ -1186,6 +1232,17 @@ function settleKicksTri(tt){
 function triW(tri,k){ return tri[k]&&tri[k].confirmed?tri[k].winner:null; }
 function triL(tri,k){ return triRes(tri[k],"l"); }
 function triPlacements(tri){ return {1:triW(tri,"A1"),2:triW(tri,"B1"),3:triW(tri,"C1"),4:triW(tri,"D1")}; }
+function finishTournamentD(d){
+  /* finalize whatever is running: signup is discarded (nothing played), swiss/triangle lock in and archive */
+  const tt=d.tournament; if(!tt) return;
+  if(tt.phase==="signup"){ d.tournament={phase:"idle"}; return; }
+  if(tt.phase==="swiss"||tt.phase==="triangle"){
+    tt.phase="done";
+    if(tt.tri){ tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); }
+    else { tt.champion=null; tt.placements={}; }
+    archiveTournament(d);
+  }
+}
 function archiveTournament(d){
   /* uses the season/week captured when Swiss started, so late archiving cannot mislabel the tournament */
   const tt=d.tournament; if(!tt||tt.archived) return;
@@ -1276,6 +1333,8 @@ function Tournament({data,me,role,mutate}){
   const [histSel,setHistSel]=useState(null);
   const [endArm,setEndArm]=useState(false);
   const [kickArm,setKickArm]=useState(null);
+  const [resetArm,setResetArm]=useState(false);
+  const [triEditArm,setTriEditArm]=useState(null);
   const [delHistArm,setDelHistArm]=useState(null);
   useEffect(()=>{ const id=setInterval(()=>setNowTs(Date.now()),30000); return ()=>clearInterval(id); },[]);
   function openTournament(){ mutate(d=>{ d.tournament={phase:"signup",name:"",server:"EMEA",startTime:Date.now()+2*3600000,signups:{},checkin:{}}; return d; }); }
@@ -1318,7 +1377,13 @@ function Tournament({data,me,role,mutate}){
       if(tt.tri.D1&&tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); }
     }
     return d; }); setKickArm(null); }
-  function endTournament(){ mutate(d=>{ const tt=d.tournament; if(!tt||tt.phase!=="triangle") return d; tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); return d; }); setEndArm(false); }
+  function endTournament(){ mutate(d=>{ const tt=d.tournament; if(!tt||(tt.phase!=="triangle"&&tt.phase!=="swiss")) return d; finishTournamentD(d); return d; }); setEndArm(false); }
+  function triDesc(key){ const out=[]; const q=[key]; while(q.length){ const cur=q.shift(); Object.keys(TRI_DEPS).forEach(ck=>{ if(TRI_DEPS[ck].some(dep=>dep[1]===cur)&&out.indexOf(ck)<0){ out.push(ck); q.push(ck); } }); } return out; }
+  function editTri(k){ mutate(d=>{ const tt=d.tournament; if(!tt||tt.phase!=="triangle"||!tt.tri) return d;
+    [k].concat(triDesc(k)).forEach(kk=>{ const m=tt.tri[kk]; if(!m) return; m.confirmed=false; m.winner=null; m.reports={}; if(m.report) delete m.report; if(m.kick) delete m.kick; if(m.vs) delete m.vs; });
+    triRecompute(tt.tri);
+    if(Object.keys(tt.kicked||{}).length) settleKicksTri(tt);
+    return d; }); setTriEditArm(null); }
   function setTriWinner(k,w){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; mm.winner=w; mm.confirmed=true; mm.report={winner:w,by:"admin"}; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } return d; }); }
   function awardAP(){ mutate(d=>{ const pl=d.tournament.placements||{}; const pts={1:5,2:3,3:2,4:1}; [1,2,3,4].forEach(k=>{ const u=pl[k]; if(u&&d.users[u]) d.users[u].aphro=(d.users[u].aphro||0)+pts[k]; }); d.tournament.awarded=true; return d; }); }
 
@@ -1370,6 +1435,21 @@ function Tournament({data,me,role,mutate}){
     }</div>;
   }
 
+  const finishBox=((t.phase==="triangle"||t.phase==="swiss")&&isAdmin)?(
+<div style={box}>
+        <div style={{...sLbl,marginBottom:"6px"}}>Finish this tournament</div>
+        <div style={{fontSize:"15px",color:C.muted,marginBottom:"10px",lineHeight:1.5}}>Locks the placements from the matches confirmed so far and archives the tournament so anyone can browse it under Past tournaments. Use this when the remaining matches will not be played.</div>
+        <button className="btn" onClick={()=>endArm?endTournament():setEndArm(true)} style={{width:"100%",padding:"11px",background:endArm?"#1a3a1a":"#0d1a12",border:"1px solid "+(endArm?"#4a8a4a":"#2a5a3a"),borderRadius:"8px",color:endArm?"#a8d8a8":"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:700}}>{endArm?"Confirm: end and archive now":"End this tournament"}</button>
+        {t.phase==="triangle"&&(t.players||[]).length>0&&<div style={{marginTop:"12px",borderTop:"1px solid #ffffff12",paddingTop:"10px"}}>
+          <div style={{fontSize:"14px",color:"#948a74",marginBottom:"7px",fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>Remove a player (their unplayed matches become walkovers)</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:"7px"}}>
+            {(t.players||[]).map(n=>(kickArm===n
+              ? <button key={n} className="btn" onClick={()=>kickPlayer(n)} style={{padding:"5px 11px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:700}}>Kick {n}?</button>
+              : <button key={n} className="btn" onClick={()=>setKickArm(n)} style={{padding:"5px 11px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"14px"}}>{n}</button>))}
+          </div>
+        </div>}
+      </div>
+  ):null;
   if(t.phase==="idle"){
     return <div style={wrap} className="fu">{tabBar}<div style={{...box,textAlign:"center"}}>
       <div style={{...sLbl,marginBottom:"8px"}}>Tournament</div>
@@ -1411,7 +1491,7 @@ function Tournament({data,me,role,mutate}){
         </div>
         <div style={{display:"flex",gap:"8px"}}>
           <button className="btn" disabled={ci.length<4} onClick={startSwiss} style={{flex:1,padding:"11px",background:ci.length>=4?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"9px",color:ci.length>=4?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900}}>Start Swiss round 1 ({ci.length} checked in{ci.length<4?" - need 4":""})</button>
-          <button className="btn" onClick={reset} style={{padding:"11px 16px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"9px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"17px"}}>Cancel</button>
+          <button className="btn" onClick={()=>resetArm?reset():setResetArm(true)} style={{padding:"11px 16px",background:resetArm?"#3a1010":"transparent",border:"1px solid "+(resetArm?"#a33":"#5a2a2a"),borderRadius:"9px",color:resetArm?"#f88":"#a66",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:resetArm?700:400}}>{resetArm?"Confirm: delete this tournament":"Cancel tournament"}</button>
         </div>
         <div style={{fontSize:"15px",color:"#948a74",marginTop:"8px"}}>Only checked-in players are seeded. Anyone who did not check in is dropped.</div>
       </div>}
@@ -1472,6 +1552,7 @@ function Tournament({data,me,role,mutate}){
         <div style={{display:"flex",flexDirection:"column",gap:"3px",padding:"4px",background:"#090b12",border:"1px solid "+(m.confirmed?"#c8a96e30":ready?"#2f2f2f":"#171717"),borderRadius:"7px",opacity:ready?1:0.45}}>
           {nameCell(k,m.a)}{nameCell(k,m.b)}
           {ready&&!m.confirmed&&m.reports&&m.reports[m.a]&&m.reports[m.b]&&m.reports[m.a]!==m.reports[m.b]&&<div style={{fontSize:"12px",color:"#e07a7a",textAlign:"center",fontFamily:"'Cinzel',serif"}}>conflict</div>}
+          {isAdmin&&t.phase==="triangle"&&m.confirmed&&<div className="btn" onClick={()=>triEditArm===k?editTri(k):setTriEditArm(k)} style={{fontSize:"12px",textAlign:"center",color:triEditArm===k?"#f88":"#7f7869",fontFamily:"'Cinzel',serif",cursor:"pointer",padding:"2px 0",fontWeight:triEditArm===k?700:400}}>{triEditArm===k?"confirm: clears later results":"edit result"}</div>}
         </div>
       </div>; };
     const winBox=(k)=>{ const w=triW(tri,k); const pos=TRI_WIN[k]; const champ=k==="A1";
@@ -1492,7 +1573,7 @@ function Tournament({data,me,role,mutate}){
     return <div style={wrap} className="fu">{tabBar}
       <div style={{...box,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div><div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"21px",fontWeight:600}}>Triangle bracket</div><div style={{fontSize:"17px",color:C.muted}}>{t.phase==="done"?"Complete":"Top 8 from Swiss · tap a name to report"}</div></div>
-        {isAdmin&&<button className="btn" onClick={reset} style={{padding:"9px 12px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"8px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Reset</button>}
+        
       </div>
       <div style={{...box,overflowX:"auto",paddingBottom:"14px"}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(140px,1fr))",gridTemplateRows:"repeat(5,auto)",gap:"9px 12px",minWidth:"760px"}}>
@@ -1501,19 +1582,7 @@ function Tournament({data,me,role,mutate}){
           {["A4","B3","C2","D1"].map(loseBox)}
         </div>
       </div>
-      {t.phase==="triangle"&&isAdmin&&<div style={box}>
-        <div style={{...sLbl,marginBottom:"6px"}}>Finish this tournament</div>
-        <div style={{fontSize:"15px",color:C.muted,marginBottom:"10px",lineHeight:1.5}}>Locks the placements from the matches confirmed so far and archives the tournament so anyone can browse it under Past tournaments. Use this when the remaining matches will not be played.</div>
-        <button className="btn" onClick={()=>endArm?endTournament():setEndArm(true)} style={{width:"100%",padding:"11px",background:endArm?"#1a3a1a":"#0d1a12",border:"1px solid "+(endArm?"#4a8a4a":"#2a5a3a"),borderRadius:"8px",color:endArm?"#a8d8a8":"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:700}}>{endArm?"Confirm: end and archive now":"End this tournament"}</button>
-        {(t.players||[]).length>0&&<div style={{marginTop:"12px",borderTop:"1px solid #ffffff12",paddingTop:"10px"}}>
-          <div style={{fontSize:"14px",color:"#948a74",marginBottom:"7px",fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>Remove a player (their unplayed matches become walkovers)</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:"7px"}}>
-            {(t.players||[]).map(n=>(kickArm===n
-              ? <button key={n} className="btn" onClick={()=>kickPlayer(n)} style={{padding:"5px 11px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"14px",fontWeight:700}}>Kick {n}?</button>
-              : <button key={n} className="btn" onClick={()=>setKickArm(n)} style={{padding:"5px 11px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"14px"}}>{n}</button>))}
-          </div>
-        </div>}
-      </div>}
+      {finishBox}
       {t.phase==="done"&&<div style={box}>
         <div style={{...sLbl,marginBottom:"10px"}}>Final placements · Aphrodite Points</div>
         {[1,2,3,4].map(k=>(<div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
@@ -1526,6 +1595,7 @@ function Tournament({data,me,role,mutate}){
               <button className="btn" onClick={awardAP} style={{width:"100%",marginTop:"12px",padding:"11px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"9px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"18px",fontWeight:900}}>Award Aphrodite Points automatically (5/3/2/1)</button>
               <div style={{fontSize:"14px",color:"#948a74",marginTop:"8px",textAlign:"center",lineHeight:1.5}}>Or add them manually per account in the Accounts tab.</div>
             </React.Fragment>)}
+        {isAdmin&&<button className="btn" onClick={()=>mutate(d=>{ d.tournament={phase:"idle"}; return d; })} style={{width:"100%",marginTop:"12px",padding:"10px",background:"transparent",border:"1px solid #2a5a3a",borderRadius:"9px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"16px"}}>Start a new tournament (this one stays in Past tournaments)</button>}
       </div>}
     </div>;
   }
@@ -1541,45 +1611,54 @@ function Tournament({data,me,role,mutate}){
         {t.round<t.totalRounds
           ? <button className="btn" disabled={!allDone} onClick={nextRound} style={{padding:"9px 15px",background:allDone?"linear-gradient(135deg,#c8a96e,#9a7440)":"#111",border:"none",borderRadius:"8px",color:allDone?C.bg:C.faint,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:700}}>Next round</button>
           : (allDone?<button className="btn" onClick={startTriangle} style={{padding:"9px 15px",background:"linear-gradient(135deg,#c8a96e,#9a7440)",border:"none",borderRadius:"8px",color:C.bg,fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:900}}>Start Triangle</button>:<span style={{fontSize:"17px",color:C.muted,fontFamily:"'Cinzel',serif",alignSelf:"center"}}>Finish all matches</span>)}
-        <button className="btn" onClick={reset} style={{padding:"9px 12px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"8px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>Reset</button>
+        
       </div>}
     </div>
 
-    <div style={box}>
-      <div style={{...sLbl,marginBottom:"10px"}}>Round {t.round} matches</div>
-      {cur.matches.map((m,mi)=>{
+    {rounds.map((x,i)=>i).reverse().map(ri=>{ const rd=rounds[ri]||{matches:[]}; const isCur=ri===t.round-1; return (
+    <div key={"rr"+ri} style={box}>
+      <div style={{...sLbl,marginBottom:"10px"}}>Round {ri+1} matches{isCur?"":" (earlier round, staff can still fix results)"}</div>
+      {rd.matches.map((m,mi)=>{
         const mine=me&&(m.a===me||m.b===me);
         if(m.bye) return <div key={mi} style={{padding:"9px 0",borderBottom:"1px solid #c8a96e10",fontSize:"18px",color:C.muted}}><strong style={{color:C.text}}>{m.a}</strong> has a bye (free win{m.kick&&m.vs?", "+m.vs+" was removed":""})</div>;
         const ra=m.reports&&m.reports[m.a]; const rb=m.reports&&m.reports[m.b]; const conflict=ra&&rb&&ra!==rb; const myRep=(m.reports&&me)?m.reports[me]:null;
         return (
           <div key={mi} style={{padding:"10px 0",borderBottom:"1px solid #c8a96e10"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",flexWrap:"wrap"}}>
-              <div style={{fontSize:"20px",color:C.text}}><strong style={{color:m.confirmed&&m.winner===m.a?"#6ac68a":C.text}}>{m.a}</strong> <span style={{color:C.muted,fontSize:"17px"}}>vs</span> <strong style={{color:m.confirmed&&m.winner===m.b?"#6ac68a":C.text}}>{m.b}</strong></div>
+              <div style={{fontSize:"20px",color:C.text}}><strong style={{color:m.confirmed&&m.winner===m.a?"#6ac68a":C.text}}>{m.a}</strong> <span style={{color:C.muted,fontSize:"17px"}}>vs</span> <strong style={{color:m.confirmed&&m.winner===m.b?"#6ac68a":C.text}}>{m.b}</strong>{m.rematch?<span style={{fontSize:"13px",color:"#8a8172",marginLeft:"7px"}}>rematch, no other pairing was possible</span>:null}</div>
               {m.confirmed
                 ? <span style={{fontSize:"17px",color:"#6ac68a",fontFamily:"'Cinzel',serif"}}>{m.winner} won</span>
                 : conflict? <span style={{fontSize:"16px",color:"#e07a7a",fontFamily:"'Cinzel',serif"}}>conflict - staff resolves</span>
                 : (ra||rb)? <span style={{fontSize:"16px",color:"#e0b040",fontFamily:"'Cinzel',serif"}}>reported: {ra||rb} won - waiting</span>
                 : <span style={{fontSize:"16px",color:C.muted}}>not reported</span>}
             </div>
-            {mine&&!m.confirmed&&<div style={{display:"flex",gap:"7px",marginTop:"8px"}}>
-              <button className="btn" onClick={()=>report(t.round-1,mi,me)} style={{flex:1,padding:"8px",background:myRep===me?"#0d1a12":"#0d0f18",border:"1px solid "+(myRep===me?"#2a5a3a":"#333"),borderRadius:"7px",color:myRep===me?"#6ac68a":C.text,fontFamily:"'Cinzel',serif",fontSize:"17px"}}>I won</button>
-              <button className="btn" onClick={()=>report(t.round-1,mi,m.a===me?m.b:m.a)} style={{flex:1,padding:"8px",background:(myRep&&myRep!==me)?"#1a1010":"#0d0f18",border:"1px solid "+((myRep&&myRep!==me)?"#5a2a2a":"#333"),borderRadius:"7px",color:(myRep&&myRep!==me)?"#e0a0a0":C.muted,fontFamily:"'Cinzel',serif",fontSize:"17px"}}>I lost</button>
+            {mine&&isCur&&!m.confirmed&&<div style={{display:"flex",gap:"7px",marginTop:"8px"}}>
+              <button className="btn" onClick={()=>report(ri,mi,me)} style={{flex:1,padding:"8px",background:myRep===me?"#0d1a12":"#0d0f18",border:"1px solid "+(myRep===me?"#2a5a3a":"#333"),borderRadius:"7px",color:myRep===me?"#6ac68a":C.text,fontFamily:"'Cinzel',serif",fontSize:"17px"}}>I won</button>
+              <button className="btn" onClick={()=>report(ri,mi,m.a===me?m.b:m.a)} style={{flex:1,padding:"8px",background:(myRep&&myRep!==me)?"#1a1010":"#0d0f18",border:"1px solid "+((myRep&&myRep!==me)?"#5a2a2a":"#333"),borderRadius:"7px",color:(myRep&&myRep!==me)?"#e0a0a0":C.muted,fontFamily:"'Cinzel',serif",fontSize:"17px"}}>I lost</button>
             </div>}
             {isAdmin&&!m.confirmed&&<div style={{display:"flex",gap:"6px",marginTop:"8px",flexWrap:"wrap"}}>
-              <button className="btn" onClick={()=>setWinner(t.round-1,mi,m.a)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{m.a} won</button>
-              <button className="btn" onClick={()=>setWinner(t.round-1,mi,m.b)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{m.b} won</button>
+              <button className="btn" onClick={()=>setWinner(ri,mi,m.a)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{m.a} won</button>
+              <button className="btn" onClick={()=>setWinner(ri,mi,m.b)} style={{padding:"6px 10px",background:"transparent",border:"1px solid #444",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{m.b} won</button>
             </div>}
-            {isAdmin&&m.confirmed&&!m.bye&&<button className="btn" onClick={()=>undo(t.round-1,mi)} style={{marginTop:"6px",padding:"4px 10px",background:"transparent",border:"1px solid #4a2222",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"15px"}}>undo</button>}
+            {isAdmin&&m.confirmed&&!m.bye&&<div style={{display:"flex",gap:"6px",marginTop:"8px",flexWrap:"wrap",alignItems:"center"}}>
+              <span style={{fontSize:"14px",color:"#948a74",fontFamily:"'Cinzel',serif"}}>change result:</span>
+              <button className="btn" onClick={()=>setWinner(ri,mi,m.a)} style={{padding:"5px 10px",background:m.winner===m.a?"#0d1a12":"transparent",border:"1px solid "+(m.winner===m.a?"#2a5a3a":"#444"),borderRadius:"6px",color:m.winner===m.a?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{m.a} won</button>
+              <button className="btn" onClick={()=>setWinner(ri,mi,m.b)} style={{padding:"5px 10px",background:m.winner===m.b?"#0d1a12":"transparent",border:"1px solid "+(m.winner===m.b?"#2a5a3a":"#444"),borderRadius:"6px",color:m.winner===m.b?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif",fontSize:"15px"}}>{m.b} won</button>
+              <button className="btn" onClick={()=>undo(ri,mi)} style={{padding:"5px 10px",background:"transparent",border:"1px solid #4a2222",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"14px"}}>clear</button>
+            </div>}
           </div>
         );
       })}
     </div>
+    ); })}
+    {finishBox}
 
     <div style={box}>
       <div style={{...sLbl,marginBottom:"10px"}}>Standings</div>
       <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"13px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
         <span style={{width:"20px"}}>#</span><span style={{flex:1}}>Player</span><span style={{fontSize:"12px"}}>Bh · Sk</span><span style={{minWidth:"46px",textAlign:"right"}}>W-L</span>
       </div>
+      <div style={{fontSize:"12px",color:"#6f6a5e",padding:"4px 0 2px 0",lineHeight:1.5}}>Bh (Buchholz) = sum of your opponents wins, minus your weakest opponent. Sk (Solkoff) = the full sum of your opponents wins. Sk is always at least Bh. A bye counts as a win but adds no opponent to either number.</div>
       {stand.map((n,i)=>{ const uu=data.users[n]||{};
         return (
         <div key={n} style={{padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
@@ -1645,6 +1724,15 @@ function App(){
       if(val.users && val.users.Aphrodite && val.users.Aphrodite.role==="mod"){
         const nu=JSON.parse(JSON.stringify(val)); nu.users.Aphrodite.role="admin"; stateRef.set(nu); return;
       }
+      if(val.users){
+        const noAcc=Object.keys(val.users).filter(n=>val.users[n].accId==null);
+        if(noAcc.length){
+          const nu=JSON.parse(JSON.stringify(val)); let mx=0;
+          Object.keys(nu.users).forEach(n=>{ const a=nu.users[n].accId; if(typeof a==="number"&&a>mx)mx=a; });
+          noAcc.sort().forEach(n=>{ mx++; nu.users[n].accId=mx; });
+          nu.accSeq=mx; stateRef.set(nu); return;
+        }
+      }
       const plain=Object.keys(val.users||{}).filter(n=>val.users[n].password && !isHashed(val.users[n].password));
       if(plain.length && subtleOK()){
         (async ()=>{
@@ -1681,7 +1769,7 @@ function App(){
     });
   }
   function login(n){ setMe(n); try{sessionStorage.setItem("at_me",n);}catch(e){} }
-  async function register(n,pw,riot,disc){ const h=await pwHash(n,pw); mutate(d=>{ if(!d.users)d.users={}; if(d.users[n]) return d; const np=freshPlayer(h); np.coins=100+95*((d.week||1)-1); np.riotId=riot||""; np.discordId=disc||""; np.regSeason=d.season||1; np.regWeek=d.week||1; d.users[n]=np; logCoin(d,n,np.coins,"register"); return d; }); }
+  async function register(n,pw,riot,disc){ const h=await pwHash(n,pw); mutate(d=>{ if(!d.users)d.users={}; if(d.users[n]) return d; const np=freshPlayer(h); np.coins=100+95*((d.week||1)-1); np.riotId=riot||""; np.discordId=disc||""; np.regSeason=d.season||1; np.regWeek=d.week||1; let mxA=d.accSeq||0; Object.keys(d.users).forEach(u=>{ const a=d.users[u].accId; if(typeof a==="number"&&a>mxA)mxA=a; }); np.accId=mxA+1; d.accSeq=mxA+1; d.users[n]=np; logCoin(d,n,np.coins,"register"); return d; }); }
   function requestReset(n){ mutate(d=>{ if(!d.users||!d.users[n])return d; if(!d.pwRequests)d.pwRequests={}; d.pwRequests[n]=Date.now(); return d; }); }
   function logout(){ setMe(null); setSpectator(false); try{sessionStorage.removeItem("at_me");}catch(e){} }
   async function changePw(current,newPw){ const u=data.users[me]; if(!u) return "Not logged in."; if(!newPw||!newPw.trim()) return "Enter a new password."; if(!u.noPassword){ const ok=await pwVerify(me,current,u.password); if(!ok) return "Current password is wrong."; } const h=await pwHash(me,newPw.trim()); mutate(d=>{ if(d.users[me]){ d.users[me].password=h; d.users[me].noPassword=false; } return d; }); return null; }
