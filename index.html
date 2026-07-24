@@ -143,7 +143,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=71;
+const BUILD=74;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -1348,6 +1348,8 @@ function Tournament({data,me,role,mutate}){
   const [nowTs,setNowTs]=useState(Date.now());
   const [view,setView]=useState("current");
   const [histSel,setHistSel]=useState(null);
+  const [histPairEdit,setHistPairEdit]=useState(false);
+  const [histPairSel,setHistPairSel]=useState(null);
   const [endArm,setEndArm]=useState(false);
   const [kickArm,setKickArm]=useState(null);
   const [resetArm,setResetArm]=useState(false);
@@ -1427,22 +1429,55 @@ function Tournament({data,me,role,mutate}){
     /* older archives: rebuild from the statistics log for that season+week */
     return (((data.stats&&data.stats.matches)||[]).filter(e=>((typeof e.s==="number")?e.s:1)===(h.s||1)&&(e.wk||0)===(h.wk||0)).map(e=>({st:e.stage,r:e.round,a:e.a||"",b:e.b||"",winner:e.winner||"",bye:e.bye?1:0})));
   }
-  function editHist(hi,mi,w){ mutate(d=>{ const h=(d.history||[])[hi]; if(!h) return d;
-    if(!h.matches){ h.matches=(((d.stats&&d.stats.matches)||[]).filter(e=>((typeof e.s==="number")?e.s:1)===(h.s||1)&&(e.wk||0)===(h.wk||0)).map(e=>({st:e.stage,r:e.round,a:e.a||"",b:e.b||"",winner:e.winner||"",bye:e.bye?1:0}))); }
-    const m=h.matches[mi]; if(!m||m.bye||!m.a||!m.b) return d;
-    m.winner=w;
-    /* standings W-L recomputed from the edited match list, order re-sorted by wins (stable) */
+  function histMaterialize(d,h){ return (((d.stats&&d.stats.matches)||[]).filter(e=>((typeof e.s==="number")?e.s:1)===(h.s||1)&&(e.wk||0)===(h.wk||0)).map(e=>({st:e.stage,r:e.round,a:e.a||"",b:e.b||"",winner:e.winner||"",bye:e.bye?1:0}))); }
+  function histFinal(h){
+    /* per player: Swiss record, Triangle record, combined; ordered by Triangle placement first */
+    const ms=histMatches(h); const acc={};
+    const touch=n=>{ if(n&&!acc[n]) acc[n]={name:n,sw:0,sl:0,tw:0,tl:0}; };
+    (h.standings||[]).forEach(p=>touch(p.name)); ms.forEach(m=>{ touch(m.a); touch(m.b); });
+    ms.forEach(m=>{ if(!m.winner) return; const isSw=m.st==="Swiss";
+      if(m.bye){ if(acc[m.a]){ if(isSw)acc[m.a].sw++; else acc[m.a].tw++; } return; }
+      const L=m.a===m.winner?m.b:m.a;
+      if(acc[m.winner]){ if(isSw)acc[m.winner].sw++; else acc[m.winner].tw++; }
+      if(acc[L]){ if(isSw)acc[L].sl++; else acc[L].tl++; } });
+    const sp={}; (h.standings||[]).forEach((p,i)=>{ sp[p.name]=i+1; });
+    const pl=h.placements||{}; const place={}; [1,2,3,4].forEach(k=>{ if(pl[k]) place[pl[k]]=k; });
+    const rows=Object.keys(acc).map(n=>Object.assign({},acc[n],{swissPlace:sp[n]||null,place:place[n]||null}));
+    rows.sort((x,y)=>{ if(x.place&&y.place) return x.place-y.place; if(x.place) return -1; if(y.place) return 1;
+      return (x.swissPlace||999)-(y.swissPlace||999); });
+    return rows;
+  }
+  function histRecompute(h){
+    /* rebuild W-L, champion and placements from the (possibly edited) archived match list */
     const wl={}; (h.standings||[]).forEach(p=>{ wl[p.name]={w:0,l:0}; });
-    h.matches.forEach(x=>{ if(!x.winner) return; if(x.bye){ if(wl[x.a]) wl[x.a].w++; return; } const L=x.a===x.winner?x.b:x.a; if(wl[x.winner]) wl[x.winner].w++; if(wl[L]) wl[L].l++; });
+    /* the archived standings table is the Swiss table, so only Swiss matches count here */
+    (h.matches||[]).forEach(x=>{ if(!x.winner||x.st!=="Swiss") return; if(x.bye){ if(wl[x.a]) wl[x.a].w++; return; } const L=x.a===x.winner?x.b:x.a; if(wl[x.winner]) wl[x.winner].w++; if(wl[L]) wl[L].l++; });
     h.standings=(h.standings||[]).map(p=>Object.assign({},p,{w:(wl[p.name]||{w:0}).w,l:(wl[p.name]||{l:0}).l})).sort((p,q)=>q.w-p.w);
-    /* champion + placements from the Triangle finals if present */
-    const tri={}; h.matches.forEach(x=>{ if(x.st==="Triangle") tri[x.r]=x; });
+    const tri={}; (h.matches||[]).forEach(x=>{ if(x.st==="Triangle") tri[x.r]=x; });
     if(Object.keys(tri).length){ const W=k=>(tri[k]&&tri[k].winner)?tri[k].winner:null; h.champion=W("A1"); h.placements={1:W("A1"),2:W("B1"),3:W("C1"),4:W("D1")}; }
-    /* keep the statistics log in sync so exports match the archive */
-    const sm=(d.stats&&d.stats.matches)||[];
-    const hit=sm.find(e=>((typeof e.s==="number")?e.s:1)===(h.s||1)&&(e.wk||0)===(h.wk||0)&&e.stage===m.st&&String(e.round)===String(m.r)&&e.a===m.a&&e.b===m.b);
-    if(hit) hit.winner=w;
+  }
+  function histSyncStats(d,h){
+    /* rebuild this tournament's rows in the statistics log so exports match the archive */
+    if(!d.stats) d.stats={}; if(!Array.isArray(d.stats.matches)) d.stats.matches=[];
+    const mine=e=>((typeof e.s==="number")?e.s:1)===(h.s||1)&&(e.wk||0)===(h.wk||0);
+    d.stats.matches=d.stats.matches.filter(e=>!mine(e));
+    (h.matches||[]).forEach(m=>{ d.stats.matches.push({s:h.s||1,wk:h.wk||0,stage:m.st,round:m.r,a:m.a||"",b:m.b||"",winner:m.winner||"",bye:m.bye?1:0,t:Date.now()}); });
+  }
+  function editHist(hi,mi,w){ mutate(d=>{ const h=(d.history||[])[hi]; if(!h) return d;
+    if(!h.matches) h.matches=histMaterialize(d,h);
+    const m=h.matches[mi]; if(!m||m.bye||!m.a||!m.b) return d;
+    m.winner=w; histRecompute(h); histSyncStats(d,h);
     return d; }); }
+  function histSwap(hi,p1,p2){ mutate(d=>{ const h=(d.history||[])[hi]; if(!h) return d;
+    if(!h.matches) h.matches=histMaterialize(d,h);
+    const m1=h.matches[p1.mi], m2=h.matches[p2.mi];
+    if(!m1||!m2||(p1.mi===p2.mi&&p1.side===p2.side)) return d;
+    const A=m1[p1.side], B=m2[p2.side]; if(A===undefined||B===undefined) return d;
+    m1[p1.side]=B; m2[p2.side]=A;
+    /* a changed match loses its old result; a bye auto-wins whoever now holds it */
+    [m1,m2].forEach(m=>{ if(m.bye){ m.winner=m.a||m.b||""; } else { m.winner=""; } });
+    histRecompute(h); histSyncStats(d,h);
+    return d; }); setHistPairSel(null); }
   function endTournament(){ mutate(d=>{ const tt=d.tournament; if(!tt||(tt.phase!=="triangle"&&tt.phase!=="swiss")) return d; finishTournamentD(d); return d; }); setEndArm(false); }
   function triDesc(key){ const out=[]; const q=[key]; while(q.length){ const cur=q.shift(); Object.keys(TRI_DEPS).forEach(ck=>{ if(TRI_DEPS[ck].some(dep=>dep[1]===cur)&&out.indexOf(ck)<0){ out.push(ck); q.push(ck); } }); } return out; }
   function editTri(k){ mutate(d=>{ const tt=d.tournament; if(!tt||tt.phase!=="triangle"||!tt.tri) return d;
@@ -1469,38 +1504,67 @@ function Tournament({data,me,role,mutate}){
             <div className="glow" style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"26px",fontWeight:900}}>{detail.champion||"-"}</div>
             <div style={{fontSize:"14px",color:C.muted,marginTop:"6px"}}>{new Date(detail.date).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric"})}{detail.server?" · "+detail.server:""}</div>
           </div>
-          <div style={box}>
-            <div style={{...sLbl,marginBottom:"10px"}}>Final standings · decks</div>
-            {(detail.standings||[]).map((p,i)=>(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
-                <span style={{width:"22px",fontFamily:"'Cinzel',serif",color:i<4?C.gold:"#3a3a3a",fontSize:"17px",fontWeight:900}}>{i+1}</span>
-                <span style={{flex:1,fontSize:"17px",color:C.text}}>{p.name}{p.riotId?<span style={{color:C.muted,fontSize:"14px"}}> · {p.riotId}</span>:null}</span>
-                {p.deck?<a href={"https://lor.gg/en/deck/"+p.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}
-                <span style={{fontSize:"16px",color:C.muted,fontFamily:"'Cinzel',serif"}}>{p.w}-{p.l}</span>
+          {(()=>{ const fr=histFinal(detail); if(!fr.length) return null;
+            const anyTri=fr.some(r=>r.tw||r.tl);
+            return <div style={box}>
+              <div style={{...sLbl,marginBottom:"10px"}}>Final standings</div>
+              <div style={{display:"flex",alignItems:"center",gap:"8px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"12px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
+                <span style={{width:"22px"}}>#</span><span style={{flex:1}}>Player</span>
+                <span style={{width:"74px",textAlign:"right"}}>Swiss</span>
+                <span style={{width:"58px",textAlign:"right"}}>Triangle</span>
+                <span style={{width:"52px",textAlign:"right"}}>Total</span>
               </div>
-            ))}
-          </div>
+              {fr.map((r,i)=>(
+                <div key={r.name} style={{display:"flex",alignItems:"center",gap:"8px",padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
+                  <span style={{width:"22px",fontFamily:"'Cinzel',serif",color:r.place?C.gold:"#3a3a3a",fontSize:"17px",fontWeight:900}}>{r.place||i+1}</span>
+                  <span style={{flex:1,minWidth:0,fontSize:"17px",color:C.text}}>{r.name}</span>
+                  <span style={{width:"74px",textAlign:"right",fontSize:"15px",color:C.muted,fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>{r.swissPlace?<span style={{fontSize:"13px",color:"#6f6a5e"}}>{"#"+r.swissPlace+" "}</span>:null}{r.sw}-{r.sl}</span>
+                  <span style={{width:"58px",textAlign:"right",fontSize:"15px",color:(r.tw||r.tl)?C.muted:"#3a3a3a",fontFamily:"'Cinzel',serif"}}>{(r.tw||r.tl)?(r.tw+"-"+r.tl):"-"}</span>
+                  <span style={{width:"52px",textAlign:"right",fontSize:"15px",color:C.text,fontFamily:"'Cinzel',serif"}}>{(r.sw+r.tw)}-{(r.sl+r.tl)}</span>
+                </div>
+              ))}
+              {anyTri?<div style={{fontSize:"13px",color:"#7a7264",marginTop:"8px",lineHeight:1.5}}>Places 1 to 4 come from the Triangle, the rest follow the Swiss order. The Swiss column shows the Swiss place and record.</div>:null}
+            </div>; })()}
           {(()=>{ const dm=histMatches(detail); if(!dm.length) return null;
             const swissR=Array.from(new Set(dm.filter(m=>m.st==="Swiss").map(m=>m.r))).sort((a,b)=>a-b);
             const triOrder=["A1","A2","A3","A4","B1","B2","B3","C1","C2","D1"];
+            const nmCell=(m,mi,side)=>{ const nm=m[side];
+              if(!histPairEdit) return <strong style={{color:m.winner===nm&&nm?"#6ac68a":C.text}}>{nm||"-"}</strong>;
+              const sel=histPairSel&&histPairSel.mi===mi&&histPairSel.side===side;
+              return <strong className="btn" onClick={()=>{ if(!histPairSel){ setHistPairSel({mi:mi,side:side}); } else { histSwap(histSel,histPairSel,{mi:mi,side:side}); } }} style={{color:sel?C.bg:C.gold,background:sel?C.gold:"#1a1400",border:"1px solid #c8a96e",borderRadius:"6px",padding:"2px 8px",cursor:"pointer"}}>{nm||"(empty)"}</strong>; };
             const row=(m,mi)=>{
-              if(m.bye) return <div key={mi} style={{padding:"7px 0",borderBottom:"1px solid #c8a96e10",fontSize:"16px",color:C.muted}}><strong style={{color:C.text}}>{m.a}</strong> free win</div>;
+              if(m.bye) return <div key={mi} style={{display:"flex",alignItems:"center",gap:"8px",padding:"7px 0",borderBottom:"1px solid #c8a96e10",fontSize:"16px",color:C.muted}}>{nmCell(m,mi,"a")} <span>free win</span></div>;
               if(!m.a&&!m.b) return null;
               return <div key={mi} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",flexWrap:"wrap",padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
-                <div style={{fontSize:"17px",color:C.text}}><strong style={{color:m.winner===m.a?"#6ac68a":C.text}}>{m.a}</strong> <span style={{color:C.muted,fontSize:"15px"}}>vs</span> <strong style={{color:m.winner===m.b?"#6ac68a":C.text}}>{m.b||"-"}</strong></div>
-                {isAdmin&&m.a&&m.b
+                <div style={{fontSize:"17px",color:C.text}}>{nmCell(m,mi,"a")} <span style={{color:C.muted,fontSize:"15px"}}>vs</span> {nmCell(m,mi,"b")}</div>
+                {!histPairEdit&&(isAdmin&&m.a&&m.b
                   ? <div style={{display:"flex",gap:"5px"}}>
                       <button className="btn" onClick={()=>editHist(histSel,mi,m.a)} style={{padding:"3px 9px",background:m.winner===m.a?"#0d1a12":"transparent",border:"1px solid "+(m.winner===m.a?"#2a5a3a":"#3a3a3a"),borderRadius:"6px",color:m.winner===m.a?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px"}}>{m.a} won</button>
                       <button className="btn" onClick={()=>editHist(histSel,mi,m.b)} style={{padding:"3px 9px",background:m.winner===m.b?"#0d1a12":"transparent",border:"1px solid "+(m.winner===m.b?"#2a5a3a":"#3a3a3a"),borderRadius:"6px",color:m.winner===m.b?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px"}}>{m.b} won</button>
                     </div>
-                  : <span style={{fontSize:"15px",color:m.winner?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif"}}>{m.winner?m.winner+" won":"not played"}</span>}
+                  : <span style={{fontSize:"15px",color:m.winner?"#6ac68a":C.muted,fontFamily:"'Cinzel',serif"}}>{m.winner?m.winner+" won":"not played"}</span>)}
               </div>; };
             return <div style={box}>
-              <div style={{...sLbl,marginBottom:"10px"}}>All matches</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
+                <div style={sLbl}>All matches</div>
+                {isAdmin&&<button className="btn" onClick={()=>{ setHistPairEdit(!histPairEdit); setHistPairSel(null); }} style={{padding:"5px 10px",background:histPairEdit?"#1a1400":"transparent",border:"1px solid "+(histPairEdit?"#c8a96e":"#3a3a3a"),borderRadius:"6px",color:histPairEdit?C.gold:C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px",flexShrink:0}}>{histPairEdit?"Done editing":"Edit pairings"}</button>}
+              </div>
+              {histPairEdit&&<div style={{fontSize:"14px",color:"#948a74",marginBottom:"8px",lineHeight:1.5}}>Tap two names to swap them across matches. A changed match loses its result so you can set the winner again.</div>}
               {swissR.map(r=><div key={"sr"+r}>
                 <div style={{fontSize:"14px",color:"#948a74",fontFamily:"'Cinzel',serif",letterSpacing:".05em",margin:"8px 0 2px"}}>Swiss round {r}</div>
                 {dm.map((m,mi)=>m.st==="Swiss"&&m.r===r?row(m,mi):null)}
               </div>)}
+              {(detail.standings||[]).length>0&&<div style={{marginTop:"12px",borderTop:"1px solid #ffffff12",paddingTop:"8px"}}>
+                <div style={{fontSize:"14px",color:"#948a74",fontFamily:"'Cinzel',serif",letterSpacing:".05em",margin:"2px 0 4px"}}>Swiss standings</div>
+                {(detail.standings||[]).map((p,i)=>(
+                  <div key={"ss"+i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
+                    <span style={{width:"22px",fontFamily:"'Cinzel',serif",color:i<8?C.gold:"#3a3a3a",fontSize:"16px",fontWeight:900}}>{i+1}</span>
+                    <span style={{flex:1,minWidth:0,fontSize:"16px",color:C.text}}>{p.name}{p.riotId?<span style={{color:C.muted,fontSize:"13px"}}> · {p.riotId}</span>:null}</span>
+                    {p.deck?<a href={"https://lor.gg/en/deck/"+p.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"14px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}
+                    <span style={{fontSize:"15px",color:C.muted,fontFamily:"'Cinzel',serif"}}>{p.w}-{p.l}</span>
+                  </div>
+                ))}
+              </div>}
               {dm.some(m=>m.st==="Triangle")&&<div>
                 <div style={{fontSize:"14px",color:"#948a74",fontFamily:"'Cinzel',serif",letterSpacing:".05em",margin:"10px 0 2px"}}>Triangle</div>
                 {triOrder.map(k=>{ const mi=dm.findIndex(m=>m.st==="Triangle"&&m.r===k); return mi>=0?<div key={k} style={{display:"flex",gap:"8px",alignItems:"baseline"}}><span style={{width:"26px",fontSize:"13px",color:"#6f6a5e",fontFamily:"'Cinzel',serif"}}>{k}</span><div style={{flex:1}}>{row(dm[mi],mi)}</div></div>:null; })}
@@ -1528,6 +1592,38 @@ function Tournament({data,me,role,mutate}){
     }</div>;
   }
 
+  const standingsBox=(live)=>(
+      <div style={box}>
+        <div style={{...sLbl,marginBottom:"10px"}}>{live?"Standings":"Swiss standings"}</div>
+        <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"13px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
+          <span style={{width:"20px"}}>#</span><span style={{flex:1}}>Player</span><span style={{fontSize:"12px"}}>Bh · Sk</span><span style={{minWidth:"46px",textAlign:"right"}}>W-L</span>
+        </div>
+        {stand.map((n,i)=>{ const uu=data.users[n]||{};
+          return (
+          <div key={n} style={{padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+            <span style={{width:"20px",fontFamily:"'Cinzel',serif",color:i<8?C.gold:"#3a3a3a",fontSize:"18px",fontWeight:900}}>{i+1}</span>
+            <span style={{flex:1,minWidth:0,fontSize:"18px",color:n===me?C.gold:C.text}}>{n}</span>
+            {(()=>{const url=deckUrl(uu.deck);return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null;})()}
+            <span style={{fontSize:"14px",color:"#8a8172",fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>Bh {buch(n,rec)} · Sk {solk(n,rec)}</span>
+            {live&&isAdmin&&<div style={{display:"flex",flexDirection:"column",gap:"1px"}}>
+              <button className="btn" onClick={()=>setTiebreak(n,1)} style={{padding:"0 7px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:C.muted,fontSize:"13px",lineHeight:"17px"}}>▲</button>
+              <button className="btn" onClick={()=>setTiebreak(n,-1)} style={{padding:"0 7px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:C.muted,fontSize:"13px",lineHeight:"17px"}}>▼</button>
+            </div>}
+            {live&&isAdmin&&t.phase!=="done"&&(kickArm===n
+              ? <button className="btn" onClick={()=>kickPlayer(n)} style={{flexShrink:0,padding:"4px 9px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:700}}>Sure?</button>
+              : <button className="btn" onClick={()=>setKickArm(n)} style={{flexShrink:0,padding:"4px 9px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"13px"}}>Kick</button>)}
+            <span style={{fontSize:"17px",color:C.muted,fontFamily:"'Cinzel',serif",minWidth:"46px",textAlign:"right"}}>{rec[n].w}-{rec[n].l}</span>
+          </div>
+          {(uu.riotId||uu.discordId) && <div style={{marginLeft:"30px",marginTop:"2px",display:"flex",gap:"12px",flexWrap:"wrap",fontSize:"14px",color:C.muted}}>
+            {uu.riotId?<span>Riot: <span style={{color:"#a89c86"}}>{uu.riotId}</span></span>:null}
+            {uu.discordId?<span>Discord: <span style={{color:"#a89c86"}}>{uu.discordId}</span></span>:null}
+          </div>}
+          </div>
+        ); })}
+        {live?<div style={{fontSize:"15px",color:"#948a74",marginTop:"8px",lineHeight:1.5}}>Sorted by wins, then tiebreakers. Use ▲▼ to settle a remaining tie. Top 8 advance to the Triangle.</div>:null}
+      </div>
+  );
   const swissRoundsBox=((t.phase==="triangle"||t.phase==="done")&&(t.rounds||[]).some(rd=>(rd.matches||[]).length))?(
     <div style={box}>
       <div style={{...sLbl,marginBottom:"10px"}}>Swiss rounds</div>
@@ -1700,6 +1796,7 @@ function Tournament({data,me,role,mutate}){
         </div>
       </div>
       {swissRoundsBox}
+      {(t.rounds||[]).some(rd=>(rd.matches||[]).length)?standingsBox(false):null}
       {finishBox}
       {t.phase==="done"&&<div style={box}>
         <div style={{...sLbl,marginBottom:"10px"}}>Final placements · Aphrodite Points</div>
@@ -1778,36 +1875,7 @@ function Tournament({data,me,role,mutate}){
     ); })}
     {finishBox}
 
-    <div style={box}>
-      <div style={{...sLbl,marginBottom:"10px"}}>Standings</div>
-      <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"13px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
-        <span style={{width:"20px"}}>#</span><span style={{flex:1}}>Player</span><span style={{fontSize:"12px"}}>Bh · Sk</span><span style={{minWidth:"46px",textAlign:"right"}}>W-L</span>
-      </div>
-      {stand.map((n,i)=>{ const uu=data.users[n]||{};
-        return (
-        <div key={n} style={{padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
-        <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
-          <span style={{width:"20px",fontFamily:"'Cinzel',serif",color:i<8?C.gold:"#3a3a3a",fontSize:"18px",fontWeight:900}}>{i+1}</span>
-          <span style={{flex:1,minWidth:0,fontSize:"18px",color:n===me?C.gold:C.text}}>{n}</span>
-          {(()=>{const url=deckUrl(uu.deck);return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null;})()}
-          <span style={{fontSize:"14px",color:"#8a8172",fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>Bh {buch(n,rec)} · Sk {solk(n,rec)}</span>
-          {isAdmin&&<div style={{display:"flex",flexDirection:"column",gap:"1px"}}>
-            <button className="btn" onClick={()=>setTiebreak(n,1)} style={{padding:"0 7px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:C.muted,fontSize:"13px",lineHeight:"17px"}}>▲</button>
-            <button className="btn" onClick={()=>setTiebreak(n,-1)} style={{padding:"0 7px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:C.muted,fontSize:"13px",lineHeight:"17px"}}>▼</button>
-          </div>}
-          {isAdmin&&t.phase!=="done"&&(kickArm===n
-            ? <button className="btn" onClick={()=>kickPlayer(n)} style={{flexShrink:0,padding:"4px 9px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:700}}>Sure?</button>
-            : <button className="btn" onClick={()=>setKickArm(n)} style={{flexShrink:0,padding:"4px 9px",background:"transparent",border:"1px solid #5a2a2a",borderRadius:"6px",color:"#a66",fontFamily:"'Cinzel',serif",fontSize:"13px"}}>Kick</button>)}
-          <span style={{fontSize:"17px",color:C.muted,fontFamily:"'Cinzel',serif",minWidth:"46px",textAlign:"right"}}>{rec[n].w}-{rec[n].l}</span>
-        </div>
-        {(uu.riotId||uu.discordId) && <div style={{marginLeft:"30px",marginTop:"2px",display:"flex",gap:"12px",flexWrap:"wrap",fontSize:"14px",color:C.muted}}>
-          {uu.riotId?<span>Riot: <span style={{color:"#a89c86"}}>{uu.riotId}</span></span>:null}
-          {uu.discordId?<span>Discord: <span style={{color:"#a89c86"}}>{uu.discordId}</span></span>:null}
-        </div>}
-        </div>
-      ); })}
-      <div style={{fontSize:"15px",color:"#948a74",marginTop:"8px",lineHeight:1.5}}>Sorted by wins, then tiebreakers. Use ▲▼ to settle a remaining tie. Top 8 advance to the Triangle.</div>
-    </div>
+{standingsBox(true)}
   </div>;
 }
 
