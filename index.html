@@ -143,7 +143,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=74;
+const BUILD=75;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -1440,9 +1440,9 @@ function Tournament({data,me,role,mutate}){
       const L=m.a===m.winner?m.b:m.a;
       if(acc[m.winner]){ if(isSw)acc[m.winner].sw++; else acc[m.winner].tw++; }
       if(acc[L]){ if(isSw)acc[L].sl++; else acc[L].tl++; } });
-    const sp={}; (h.standings||[]).forEach((p,i)=>{ sp[p.name]=i+1; });
+    const sp={}, dk={}, rid={}; (h.standings||[]).forEach((p,i)=>{ sp[p.name]=i+1; dk[p.name]=p.deck||""; rid[p.name]=p.riotId||""; });
     const pl=h.placements||{}; const place={}; [1,2,3,4].forEach(k=>{ if(pl[k]) place[pl[k]]=k; });
-    const rows=Object.keys(acc).map(n=>Object.assign({},acc[n],{swissPlace:sp[n]||null,place:place[n]||null}));
+    const rows=Object.keys(acc).map(n=>Object.assign({},acc[n],{swissPlace:sp[n]||null,place:place[n]||null,deck:dk[n]||"",riotId:rid[n]||""}));
     rows.sort((x,y)=>{ if(x.place&&y.place) return x.place-y.place; if(x.place) return -1; if(y.place) return 1;
       return (x.swissPlace||999)-(y.swissPlace||999); });
     return rows;
@@ -1510,17 +1510,19 @@ function Tournament({data,me,role,mutate}){
               <div style={{...sLbl,marginBottom:"10px"}}>Final standings</div>
               <div style={{display:"flex",alignItems:"center",gap:"8px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"12px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
                 <span style={{width:"22px"}}>#</span><span style={{flex:1}}>Player</span>
+                <span style={{width:"48px",textAlign:"right"}}>Deck</span>
+                <span style={{width:"52px",textAlign:"right"}}>Total</span>
                 <span style={{width:"74px",textAlign:"right"}}>Swiss</span>
                 <span style={{width:"58px",textAlign:"right"}}>Triangle</span>
-                <span style={{width:"52px",textAlign:"right"}}>Total</span>
               </div>
               {fr.map((r,i)=>(
                 <div key={r.name} style={{display:"flex",alignItems:"center",gap:"8px",padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
                   <span style={{width:"22px",fontFamily:"'Cinzel',serif",color:r.place?C.gold:"#3a3a3a",fontSize:"17px",fontWeight:900}}>{r.place||i+1}</span>
-                  <span style={{flex:1,minWidth:0,fontSize:"17px",color:C.text}}>{r.name}</span>
+                  <span style={{flex:1,minWidth:0,fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}{r.riotId?<span style={{color:C.muted,fontSize:"13px"}}> · {r.riotId}</span>:null}</span>
+                  <span style={{width:"48px",textAlign:"right"}}>{r.deck?<a href={"https://lor.gg/en/deck/"+r.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"14px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}</span>
+                  <span style={{width:"52px",textAlign:"right",fontSize:"15px",color:C.text,fontFamily:"'Cinzel',serif",fontWeight:700}}>{(r.sw+r.tw)}-{(r.sl+r.tl)}</span>
                   <span style={{width:"74px",textAlign:"right",fontSize:"15px",color:C.muted,fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>{r.swissPlace?<span style={{fontSize:"13px",color:"#6f6a5e"}}>{"#"+r.swissPlace+" "}</span>:null}{r.sw}-{r.sl}</span>
                   <span style={{width:"58px",textAlign:"right",fontSize:"15px",color:(r.tw||r.tl)?C.muted:"#3a3a3a",fontFamily:"'Cinzel',serif"}}>{(r.tw||r.tl)?(r.tw+"-"+r.tl):"-"}</span>
-                  <span style={{width:"52px",textAlign:"right",fontSize:"15px",color:C.text,fontFamily:"'Cinzel',serif"}}>{(r.sw+r.tw)}-{(r.sl+r.tl)}</span>
                 </div>
               ))}
               {anyTri?<div style={{fontSize:"13px",color:"#7a7264",marginTop:"8px",lineHeight:1.5}}>Places 1 to 4 come from the Triangle, the rest follow the Swiss order. The Swiss column shows the Swiss place and record.</div>:null}
