@@ -143,7 +143,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=75;
+const BUILD=79;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -395,6 +395,19 @@ function AdminHome({data,mutate,me,db,starters}){
     const accIdOf=n=>{ const u=users[n]; return (u&&u.accId!=null)?u.accId:(n||""); };
     const discOf=n=>{ const u=users[n]; return (u&&u.discordId)?String(u.discordId).trim().toLowerCase():""; };
     const playerIdOf=(function(){ const g={}; Object.keys(users).forEach(n=>{ const k=discOf(n); if(!k)return; const a=accIdOf(n); if(typeof a==="number"&&(!(k in g)||a<g[k])) g[k]=a; }); return n=>{ const k=n?discOf(n):""; return (k&&g[k]!=null)?g[k]:accIdOf(n); }; })();
+    /* accounts excluded from the export: staff, Test accounts, and any name/discord in these lists.
+       Add Flixus's account name(s) or discord to keep his data out automatically. */
+    const EXCL_NAMES=[];
+    const EXCL_DISCORDS=[];
+    /* any account whose Riot ID contains one of these (spaces collapsed, lowercased) is excluded */
+    const EXCL_RIOT=["aph flixus"];
+    const riotOf=n=>{ const u=users[n]; return (u&&u.riotId)?String(u.riotId).toLowerCase().replace(/\s+/g," ").trim():""; };
+    const excl=n=>{ if(!n) return false; if(isStaff(n)) return true; if(/^Test\d+$/i.test(n)) return true; if(EXCL_NAMES.indexOf(n)>=0) return true;
+      const rt=riotOf(n); if(rt!==""&&EXCL_RIOT.some(x=>rt.indexOf(x)>=0)) return true;
+      const dsc=discOf(n); return dsc!==""&&EXCL_DISCORDS.map(x=>String(x).trim().toLowerCase()).indexOf(dsc)>=0; };
+    /* Player Name = the name of the first account (lowest Account ID) that shares this Discord */
+    const nameByAcc={}; Object.keys(users).forEach(n=>{ const a=accIdOf(n); if(typeof a==="number"&&!(a in nameByAcc)) nameByAcc[a]=n; });
+    const playerNameOf=n=>{ const pid=playerIdOf(n); return (typeof pid==="number"&&nameByAcc[pid])?nameByAcc[pid]:n; };
     /* per-table sequential IDs, chronological within this export */
     const chrono=(x,y)=>((x.id||0)-(y.id||0))||((x.t||0)-(y.t||0));
     const seqMap=arr=>{ const m=new Map(); arr.slice().sort(chrono).forEach((e,i)=>m.set(e,i+1)); return e=>m.has(e)?m.get(e):""; };
@@ -473,7 +486,7 @@ function AdminHome({data,mutate,me,db,starters}){
     const vals=codes=>codes.map(cost);
     const expandRemoved=r=>{ const out=[]; Object.keys(r||{}).forEach(c=>{ for(let i=0;i<(r[c]||0);i++) out.push(c); }); return out; };
     const apFor=p=>p===1?5:p===2?3:p===3?2:p===4?1:0;
-    const players=Object.keys(users).filter(n=>users[n].role==="player").sort();
+    const players=Object.keys(users).filter(n=>users[n].role==="player"&&!excl(n)).sort();
     const wb=new ExcelJS.Workbook();
     const add=(name,aoa)=>{
       const ws=wb.addWorksheet(name,{views:[{state:"frozen",ySplit:1}]});
@@ -489,6 +502,7 @@ function AdminHome({data,mutate,me,db,starters}){
       hdr.height=20;
       for(let c=1;c<=ncol;c++){ hdr.getCell(c).fill={type:"pattern",pattern:"solid",fgColor:{argb:"FF2A5A3A"}}; }
       ws.autoFilter={from:{row:1,column:1},to:{row:1,column:ncol}};
+      return ws;
     };
     const seasonsList = target!=null ? [tS] : Array.from(new Set((S.config||[]).map(e=>e.s).concat([data.season||1]))).sort((a,b)=>a-b);
 
@@ -506,10 +520,10 @@ function AdminHome({data,mutate,me,db,starters}){
       const rem=(S.removals||[]).filter(e=>e.a===n&&normS(e)===sea);
       const remCost=rem.map(e=>e.cost||0); const remCounts=rem.map(e=>e.n||0);
       const remVals=[].concat(...rem.map(e=>vals(expandRemoved(recon.removedOf(e)))));
-      const ci=(S.checkins||[]).filter(e=>e.a===n&&normS(e)===sea).length;
+      const ci=new Set((S.checkins||[]).filter(e=>e.a===n&&normS(e)===sea).map(e=>e.wk)).size;
       const fins=[]; hist.filter(h=>(h.s||1)===sea).forEach(h=>Object.keys(h.placements||{}).forEach(pl=>{ if(h.placements[pl]===n) fins.push(parseInt(pl,10)); }));
       const u=users[n];
-      t1.push([sea,playerIdOf(n),accIdOf(n),n,n,starterOfSeason(n,sea),(u.regSeason===sea?u.regWeek:"")||"",pk.length,picked.length,sum(picked),mean(picked),median(picked),skipped.length,sum(skipped),mean(skipped),median(skipped),buys.length,sum(bv),mean(bv),median(bv),rem.length,sum(remCost),mean(remCost),median(remCost),sum(remCounts),mean(remCounts),median(remCounts),sum(remVals),mean(remVals),median(remVals),ci,fins.length,fins.filter(p=>p===1).length,fins.reduce((x,p)=>x+apFor(p),0),fins.length?Math.min.apply(null,fins):""]);
+      t1.push([sea,playerIdOf(n),accIdOf(n),n,playerNameOf(n),starterOfSeason(n,sea),(u.regSeason===sea?u.regWeek:"")||"",pk.length,picked.length,sum(picked),mean(picked),median(picked),skipped.length,sum(skipped),mean(skipped),median(skipped),buys.length,sum(bv),mean(bv),median(bv),rem.length,sum(remCost),mean(remCost),median(remCost),sum(remCounts),mean(remCounts),median(remCounts),sum(remVals),mean(remVals),median(remVals),ci,fins.length,fins.filter(p=>p===1).length,fins.reduce((x,p)=>x+apFor(p),0),fins.length?Math.min.apply(null,fins):""]);
     }); });
     add("Accounts & Data entire Season",t1);
 
@@ -517,7 +531,7 @@ function AdminHome({data,mutate,me,db,starters}){
     const t2=[["Season","Week","Check-Ins","1st Place","2nd Place","3rd Place","4th Place"]];
     const wkSet={}; (S.checkins||[]).filter(inSeason).forEach(e=>wkSet[normS(e)+"|"+e.wk]=true); hist.filter(inSeason).forEach(h=>wkSet[(h.s||1)+"|"+(h.wk||0)]=true);
     Object.keys(wkSet).filter(k=>target==null||(Number(k.split("|")[0])===tS&&(!perWeek||Number(k.split("|")[1])===tW))).sort((a,b)=>{const x=a.split("|"),y=b.split("|");return (x[0]-y[0])||(x[1]-y[1]);}).forEach(k=>{ const p=k.split("|"); const s=Number(p[0]),wk=Number(p[1]);
-      const ci=(S.checkins||[]).filter(e=>normS(e)===s&&e.wk===wk&&!isStaff(e.a)).length;
+      const ci=new Set((S.checkins||[]).filter(e=>normS(e)===s&&e.wk===wk&&!excl(e.a)).map(e=>e.a)).size;
       const h=hist.find(h=>(h.s||1)===s&&(h.wk||0)===wk)||{}; const pl=h.placements||{};
       t2.push([s,wk,ci,pl[1]||"",pl[2]||"",pl[3]||"",pl[4]||""]);
     });
@@ -527,7 +541,7 @@ function AdminHome({data,mutate,me,db,starters}){
     const led={}; (S.coins||[]).forEach(e=>{ const k=normS(e)+"|"+e.wk+"|"+e.a; (led[k]=led[k]||[]).push(e); }); Object.keys(led).forEach(k=>led[k].sort((x,y)=>(x.id||0)-(y.id||0)));
     const t3=[["Season","Week","Player ID","Account ID","Checked In (1/0)","Coins at Start","Coins Earned (from every source)","Packs Opened","No. Cards Picked","Coins Spent on Packs","Total value of cards from packs","Mean value of cards from packs","Median value of cards from packs","Pack skips","Total value of cards from skipped packs","Mean value of cards from skipped packs","Median value of cards from skipped packs","Store Cards Bought","Coins Spent in Store","Total value of cards bought from store","Mean value of cards bought from store","Median value of cards bought from store","Removal Packs Bought","Cards Removed","Coins Spent on Removals","Total value of cards removed","Mean value of cards removed","Median value of cards removed","Coins End","Deck Code for matchday","Deck Size","Champions in Deck","Total value of deck","Mean value of cards in deck","Median value of cards in deck","Matches Played","Wins","Losses","Byes","Swiss Seed","Final Placement","AP Earned","AP Total"]];
     const weekKeys={}; ["packs","buys","removals","checkins","seeds","deckLocks","coins"].forEach(catn=>(S[catn]||[]).forEach(e=>{ weekKeys[normS(e)+"|"+e.wk+"|"+e.a]=true; }));
-    Object.keys(weekKeys).filter(k=>{ const p=k.split("|"); if(isStaff(p[2])) return false; return target==null||(Number(p[0])===tS&&(!perWeek||Number(p[1])===tW)); }).sort((A,B)=>{ const a=A.split("|"),b=B.split("|"); return (a[0]-b[0])||(a[1]-b[1])||(a[2]<b[2]?-1:1); }).forEach(k=>{
+    Object.keys(weekKeys).filter(k=>{ const p=k.split("|"); if(!users[p[2]]) return false; if(excl(p[2])) return false; return target==null||(Number(p[0])===tS&&(!perWeek||Number(p[1])===tW)); }).sort((A,B)=>{ const a=A.split("|"),b=B.split("|"); return (a[0]-b[0])||(a[1]-b[1])||(a[2]<b[2]?-1:1); }).forEach(k=>{
       const p=k.split("|"); const s=Number(p[0]),wk=Number(p[1]),a=p[2];
       const pk=(S.packs||[]).filter(e=>normS(e)===s&&e.wk===wk&&e.a===a);
       const picked=pk.filter(e=>e.pick).map(e=>cost(e.pick)); const skipped=[].concat(...pk.map(e=>vals(e.skip||[])));
@@ -556,6 +570,14 @@ function AdminHome({data,mutate,me,db,starters}){
     const t4=[["Season","Week","Pack ID","Date","Player ID","Account ID","Region","Picked","Skipped","Cost of picked Card","Coins Before","Copies Owned Before","Deck Size Before"]];
     (S.packs||[]).filter(inT).slice().sort(chrono).forEach(e=>{ const cb=e.copiesBefore!=null?e.copiesBefore:recon.copiesBefore(e); const db2=e.deckBefore!=null?e.deckBefore:recon.sizeBefore(e); t4.push([normS(e),e.wk,packNo(e),dt(e.t),playerIdOf(e.a),accIdOf(e.a),e.reg,e.pick?nm(e.pick):"(took nothing)",(e.skip||[]).map(nm).join(", "),e.pick?cost(e.pick):0,e.coinsBefore!=null?e.coinsBefore:"",cb!=null?cb:"",db2!=null?db2:""]); });
     add("Pack Opens",t4);
+
+    // 4b) Region Packs: how many packs of each region were opened
+    const rpk=[]; const rpkMap={};
+    (S.packs||[]).filter(inT).filter(e=>!excl(e.a)).forEach(e=>{ const s=normS(e),wk=(e.wk!=null?e.wk:0),reg=(e.reg||"(none)"); const key=s+"|"+wk+"|"+reg; if(!(key in rpkMap)){ rpkMap[key]=rpk.length; rpk.push({s:s,wk:wk,reg:reg,n:0}); } rpk[rpkMap[key]].n++; });
+    rpk.sort((x,y)=>(x.s-y.s)||(x.wk-y.wk)||(x.reg<y.reg?-1:x.reg>y.reg?1:0));
+    const t4b=[["Season","Week","Region","Packs Opened"]];
+    rpk.forEach(r=>t4b.push([r.s,r.wk,r.reg,r.n]));
+    add("Region Packs",t4b);
 
     // 5) Store Purchases
     const t5=[["Season","Week","Store Action ID","Date","Player ID","Account ID","Card ID","Cost","Coins Before","Copies Owned Before","Deck Size Before"]];
@@ -601,10 +623,10 @@ function AdminHome({data,mutate,me,db,starters}){
     add("Starter Decks",t11);
 
     // 12) Card Reference + pick rate
-    const off={},pic={}; (S.packs||[]).filter(inSeason).forEach(e=>{ const all=(e.pick?[e.pick]:[]).concat(e.skip||[]); all.forEach(c=>off[c]=(off[c]||0)+1); if(e.pick)pic[e.pick]=(pic[e.pick]||0)+1; });
+    const off={},pic={}; (S.packs||[]).filter(inSeason).filter(e=>!excl(e.a)).forEach(e=>{ const all=(e.pick?[e.pick]:[]).concat(e.skip||[]); all.forEach(c=>off[c]=(off[c]||0)+1); if(e.pick)pic[e.pick]=(pic[e.pick]||0)+1; });
     const t12=[["Card ID","Name","Cost","Rarity","Region(s)","Cost","Category","Times offered","Times picked","Times skipped","Pick %"]];
-    (db&&db.list?db.list:[]).forEach(c=>{ const o=off[c[0]]||0,p=pic[c[0]]||0; t12.push([c[0],c[1],c[2],(c[4]===1?"Champion":["Common","Rare","Epic","Champion"][c[3]]||""),(c[5]||[]).join(", "),c[6],c[7]||"",o,p,o-p,o?Math.round(p/o*100)+"%":""]); });
-    add("Card Database",t12);
+    (db&&db.list?db.list:[]).forEach(c=>{ const o=off[c[0]]||0,p=pic[c[0]]||0; t12.push([c[0],c[1],c[2],(c[4]===1?"Champion":["Common","Rare","Epic","Champion"][c[3]]||""),(c[5]||[]).join(", "),c[6],c[7]||"",o,p,o-p,o?(p/o):null]); });
+    { const wsCD=add("Card Database",t12); wsCD.getColumn(11).numFmt="0.0%"; }
 
     const t13=[["Timestamp","Email address","What was your username during the season?","Please rate how much you enjoyed playing in this season of Aphrodite's Tales:","Please rate how fair you think the format of Aphrodite's Tales is currently:","Please rate the current speed of progression (both too slow or too fast should be rated negatively):","Please rate the current economic balancing (Cost for different actions, droprates from packs etc):","Please rate the current scheduling and frequency of Aphrodite's Tales:","If you did not paricipate in one or more matchdays, what was the main reason for your absence?","If you have any further comments, such as format recommendations, critism, praise etc, please leave them here. You are also more than welcome to give further reasoning to your ratings."]];
     add("Player Feedback",t13);
@@ -667,7 +689,7 @@ function AdminHome({data,mutate,me,db,starters}){
               return <button key={s} className="btn" onClick={()=>exportStats({s:s},"season-"+s+"-"+today)} style={{width:"100%",marginBottom:"7px",padding:"11px 12px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"16px",textAlign:"left",lineHeight:1.4}}>Season {s}{current?" (in progress)":""}<br/><span style={{fontSize:"13px",color:"#7fae8f"}}>whole season · download .xlsx</span></button>;
             })}
           </div>
-          <Leaderboard data={data} me={me}/>
+          <Leaderboard data={data} me={me} role="admin" mutate={mutate}/>
         </React.Fragment>
       )}
 
@@ -785,13 +807,30 @@ function PlayerHome({data,me,db,starters,mutate}){
 /* ============================================================
    SPECTATOR (foundation)
    ============================================================ */
-function Leaderboard({data,me}){
+function lbOrderOf(us,manual){
+  const players=Object.keys(us).filter(n=>us[n].role==="player");
+  const auto=(a,b)=>((us[b].aphro||0)-(us[a].aphro||0))||a.localeCompare(b);
+  if(manual&&manual.length){
+    const seen={}; const ordered=manual.filter(n=>{ if(seen[n]||!us[n]||us[n].role!=="player")return false; seen[n]=1; return true; });
+    const rest=players.filter(n=>!seen[n]).sort(auto);
+    return ordered.concat(rest);
+  }
+  return players.sort(auto);
+}
+function Leaderboard({data,me,role,mutate}){
   const us=data.users||{};
-  const board=Object.keys(us).filter(n=>us[n].role==="player").sort((a,b)=>((us[b].aphro||0)-(us[a].aphro||0))||a.localeCompare(b));
+  const isAdmin=role==="admin"&&typeof mutate==="function";
+  const manual=data.lbOrder||null;
+  const board=lbOrderOf(us,manual);
   const medal=i=>i===0?"#ffd76a":i===1?"#cfd4da":i===2?"#cd8b5a":"#3a3a3a";
+  const move=(i,dir)=>{ if(!isAdmin)return; mutate(d=>{ const ord=lbOrderOf(d.users||{},d.lbOrder||null); const j=i+dir; if(j<0||j>=ord.length)return d; const a=ord.slice(); const tmp=a[i];a[i]=a[j];a[j]=tmp; d.lbOrder=a; return d; }); };
+  const resetOrder=()=>{ if(!isAdmin)return; mutate(d=>{ delete d.lbOrder; return d; }); };
   return (
     <div style={sCard}>
-      <div style={{...sLbl,marginBottom:"10px"}}>Leaderboard · Aphrodite Points</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
+        <div style={sLbl}>Leaderboard · Aphrodite Points</div>
+        {isAdmin&&manual?<button className="btn" onClick={resetOrder} style={{padding:"4px 10px",background:"transparent",border:"1px solid #3a3a3a",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"13px",flexShrink:0}}>Reset to points order</button>:null}
+      </div>
       {board.length===0
         ? <div style={{fontSize:"17px",color:C.muted}}>No players yet.</div>
         : <React.Fragment>
@@ -803,10 +842,14 @@ function Leaderboard({data,me}){
                 <span style={{width:"22px",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:900,color:medal(i)}}>{i+1}</span>
                 <span style={{flex:1,minWidth:0,fontSize:"17px",color:mine?C.gold:C.text}}>{n}{us[n].riotId?<span style={{color:C.muted,fontSize:"14px"}}> · {us[n].riotId}</span>:null}</span>
                 <span style={{minWidth:"34px",textAlign:"right",fontFamily:"'Cinzel',serif",fontSize:"19px",fontWeight:900,color:ap>0?C.gold:"#4a4a4a"}}>{ap}</span>
+                {isAdmin?<div style={{display:"flex",flexDirection:"column",gap:"1px",marginLeft:"2px"}}>
+                  <button className="btn" onClick={()=>move(i,-1)} disabled={i===0} style={{padding:"0 6px",lineHeight:"14px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:i===0?"#333":C.muted,fontSize:"11px"}}>▲</button>
+                  <button className="btn" onClick={()=>move(i,1)} disabled={i===board.length-1} style={{padding:"0 6px",lineHeight:"14px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:i===board.length-1?"#333":C.muted,fontSize:"11px"}}>▼</button>
+                </div>:null}
               </div>;
             })}
           </React.Fragment>}
-      <div style={{fontSize:"14px",color:"#948a74",marginTop:"10px",lineHeight:1.5}}>1st place in a Matchday gives 5 points, 2nd gives 3, 3rd gives 2, 4th gives 1. 20 points wins the season. Points reset when a new season begins.</div>
+      <div style={{fontSize:"14px",color:"#948a74",marginTop:"10px",lineHeight:1.5}}>1st place in a Matchday gives 5 points, 2nd gives 3, 3rd gives 2, 4th gives 1. 20 points wins the season. Points reset when a new season begins.{isAdmin&&manual?" The order is set manually right now.":""}</div>
     </div>
   );
 }
@@ -1371,7 +1414,7 @@ function Tournament({data,me,role,mutate}){
   function undo(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.confirmed=false; mm.winner=null; mm.reports={}; return d; }); }
   function nextRound(){ mutate(d=>{ const tt=d.tournament; const cur=tt.rounds[tt.round-1]; if(cur.matches.some(m=>!m.confirmed))return d; if(tt.round>=tt.totalRounds)return d; const rc=computeRecords(tt.players.concat(Object.keys(tt.kicked||{})),tt.rounds); const order=standing(tt.players,rc); const m=pairRound(order,rc); tt.rounds.push({matches:m}); tt.round++; return d; }); }
   function reset(){ mutate(d=>{ d.tournament={phase:"idle"}; return d; }); }
-  function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups||!tt.signups[me])return d; if(Date.now()<(tt.startTime-7200000))return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; logCoin(d,me,5,"checkin"); logStat(d,"checkins",{a:me,wk:d.week||1,t:Date.now()}); return d; }); }
+  function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups||!tt.signups[me])return d; if(Date.now()<(tt.startTime-7200000))return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; logCoin(d,me,5,"checkin"); const cs=d.season||1,cw=d.week||1; const already=(d.stats&&d.stats.checkins||[]).some(e=>e.a===me&&((typeof e.s==="number")?e.s:1)===cs&&(e.wk||0)===cw); if(!already) logStat(d,"checkins",{a:me,s:cs,wk:cw,t:Date.now()}); return d; }); }
   function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; } return d; }); }
   function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players.concat(Object.keys(tt.kicked||{})),tt.rounds); const ord=standing(tt.players,rc); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
   function reportTri(k,winner){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } } return d; }); }
