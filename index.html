@@ -143,7 +143,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=79;
+const BUILD=81;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -789,7 +789,7 @@ function PlayerHome({data,me,db,starters,mutate}){
         <div style={{...sCard,marginBottom:"12px"}}>
           <div style={{...sLbl,marginBottom:"6px"}}>Other players' decks</div>
           {canViewOthers
-            ? <div style={{fontSize:"16px",color:C.muted,lineHeight:1.5}}>Decks are locked, so everyone's current deck is visible. Tap "view deck" to open any player's deck on lor.gg.</div>
+            ? <div style={{fontSize:"16px",color:C.muted,lineHeight:1.5}}>Decks are locked, so everyone's current deck is visible. Tap "view deck" to open any player's deck on lor.turny.gg.</div>
             : <div style={{fontSize:"16px",color:"#e0b040",lineHeight:1.5}}>Other players' decks unlock once the deck-building phase ends (Deck lock). Right now everyone is still building.</div>}
         </div>
         {canViewOthers && Object.keys(data.users).filter(n=>data.users[n].role==="player"&&n!==me&&data.users[n].starter).map(n=>{ const u=data.users[n]; const url=deckUrl(u.deck);
@@ -1356,7 +1356,7 @@ function decodeDeck(code){
   }catch(e){ return []; }
 }
 function fallbackCopy(text){ try{ const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); }catch(e){} }
-function deckUrl(deck){ const c=encodeDeck(deck||[]); return c?("https://lor.gg/en/deck/"+c):null; }
+function deckUrl(deck){ const c=encodeDeck(deck||[]); return c?("https://lor.turny.gg/en/decks/"+c):null; }
 
 function TournamentNameInput({name,onSet}){ const [v,setV]=useState(name||""); return <input value={v} onChange={e=>{setV(e.target.value);onSet(e.target.value);}} placeholder="Tournament name" style={{...sInp,fontSize:"18px",width:"100%"}}/>; }
 function toLocalDT(ts){ const off=new Date(ts).getTimezoneOffset()*60000; return new Date(ts-off).toISOString().slice(0,16); }
@@ -1562,7 +1562,7 @@ function Tournament({data,me,role,mutate}){
                 <div key={r.name} style={{display:"flex",alignItems:"center",gap:"8px",padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
                   <span style={{width:"22px",fontFamily:"'Cinzel',serif",color:r.place?C.gold:"#3a3a3a",fontSize:"17px",fontWeight:900}}>{r.place||i+1}</span>
                   <span style={{flex:1,minWidth:0,fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}{r.riotId?<span style={{color:C.muted,fontSize:"13px"}}> · {r.riotId}</span>:null}</span>
-                  <span style={{width:"48px",textAlign:"right"}}>{r.deck?<a href={"https://lor.gg/en/deck/"+r.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"14px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}</span>
+                  <span style={{width:"48px",textAlign:"right"}}>{r.deck?<a href={"https://lor.turny.gg/en/decks/"+r.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"14px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}</span>
                   <span style={{width:"52px",textAlign:"right",fontSize:"15px",color:C.text,fontFamily:"'Cinzel',serif",fontWeight:700}}>{(r.sw+r.tw)}-{(r.sl+r.tl)}</span>
                   <span style={{width:"74px",textAlign:"right",fontSize:"15px",color:C.muted,fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>{r.swissPlace?<span style={{fontSize:"13px",color:"#6f6a5e"}}>{"#"+r.swissPlace+" "}</span>:null}{r.sw}-{r.sl}</span>
                   <span style={{width:"58px",textAlign:"right",fontSize:"15px",color:(r.tw||r.tl)?C.muted:"#3a3a3a",fontFamily:"'Cinzel',serif"}}>{(r.tw||r.tl)?(r.tw+"-"+r.tl):"-"}</span>
@@ -1605,7 +1605,7 @@ function Tournament({data,me,role,mutate}){
                   <div key={"ss"+i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
                     <span style={{width:"22px",fontFamily:"'Cinzel',serif",color:i<8?C.gold:"#3a3a3a",fontSize:"16px",fontWeight:900}}>{i+1}</span>
                     <span style={{flex:1,minWidth:0,fontSize:"16px",color:C.text}}>{p.name}{p.riotId?<span style={{color:C.muted,fontSize:"13px"}}> · {p.riotId}</span>:null}</span>
-                    {p.deck?<a href={"https://lor.gg/en/deck/"+p.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"14px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}
+                    {p.deck?<a href={"https://lor.turny.gg/en/decks/"+p.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"14px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}
                     <span style={{fontSize:"15px",color:C.muted,fontFamily:"'Cinzel',serif"}}>{p.w}-{p.l}</span>
                   </div>
                 ))}
