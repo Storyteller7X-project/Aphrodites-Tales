@@ -149,7 +149,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=84;
+const BUILD=85;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -1222,6 +1222,11 @@ function buch(u,rec){ const os=(rec[u]&&rec[u].opps||[]).map(o=>rec[o]?rec[o].w:
 function solk(u,rec){ return (rec[u]&&rec[u].opps||[]).reduce((s,o)=>s+(rec[o]?rec[o].w:0),0); }
 function h2h(a,b,rounds){ let r=0; (rounds||[]).forEach(rd=>(rd.matches||[]).forEach(m=>{ if(!m.confirmed||m.bye)return; if((m.a===a&&m.b===b)||(m.a===b&&m.b===a)){ if(m.winner===a)r=1; else if(m.winner===b)r=-1; } })); return r; }
 function standing(players,rec,rounds,tb){ tb=tb||{}; return players.slice().sort((x,y)=>(rec[y].w-rec[x].w)||(buch(y,rec)-buch(x,rec))||(solk(y,rec)-solk(x,rec))||(-h2h(x,y,rounds))||((tb[y]||0)-(tb[x]||0))||x.localeCompare(y)); }
+function swissBoard(players,rec,rounds,tb,manual){
+  const auto=standing(players,rec,rounds,tb);
+  if(manual&&manual.length){ const seen={}; const ordered=manual.filter(n=>{ if(seen[n]||players.indexOf(n)<0)return false; seen[n]=1; return true; }); return ordered.concat(auto.filter(n=>!seen[n])); }
+  return auto;
+}
 function pairRound(sorted,rec){
   /* Swiss pairing that never repeats a matchup unless it is mathematically forced.
      Search order: 0 rematches, then 1, then 2... so the result always has the minimum possible.
@@ -1402,7 +1407,7 @@ function Tournament({data,me,role,mutate}){
   const players=t.players||[];
   const rounds=t.rounds||[];
   const rec=computeRecords(players.concat(Object.keys(t.kicked||{})),rounds);
-  const stand=standing(players,rec,rounds,(data.tournament&&data.tournament.tiebreak)||{});
+  const stand=swissBoard(players,rec,rounds,(data.tournament&&data.tournament.tiebreak)||{},(data.tournament&&data.tournament.swissManual)||null);
   const ci=Object.keys(t.checkin||{});
 
   const [nowTs,setNowTs]=useState(Date.now());
@@ -1433,7 +1438,9 @@ function Tournament({data,me,role,mutate}){
   function reset(){ mutate(d=>{ d.tournament={phase:"idle"}; return d; }); }
   function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups||!tt.signups[me])return d; if(Date.now()<(tt.startTime-7200000))return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; logCoin(d,me,5,"checkin"); const cs=d.season||1,cw=d.week||1; const already=(d.stats&&d.stats.checkins||[]).some(e=>e.a===me&&((typeof e.s==="number")?e.s:1)===cs&&(e.wk||0)===cw); if(!already) logStat(d,"checkins",{a:me,s:cs,wk:cw,t:Date.now()}); return d; }); }
   function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; } return d; }); }
-  function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players.concat(Object.keys(tt.kicked||{})),tt.rounds); const ord=standing(tt.players,rc); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
+  function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players.concat(Object.keys(tt.kicked||{})),tt.rounds); const ord=swissBoard(tt.players,rc,tt.rounds,tt.tiebreak||{},tt.swissManual||null); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
+  function moveSwiss(i,dir){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords((tt.players||[]).concat(Object.keys(tt.kicked||{})),tt.rounds); const ord=swissBoard(tt.players||[],rc,tt.rounds,tt.tiebreak||{},tt.swissManual||null); const j=i+dir; if(j<0||j>=ord.length)return d; const a=ord.slice(); const tmp=a[i];a[i]=a[j];a[j]=tmp; tt.swissManual=a; return d; }); }
+  function resetSwissOrder(){ mutate(d=>{ if(d.tournament) delete d.tournament.swissManual; return d; }); }
   function reportTri(k,winner){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } } return d; }); }
   function setTiebreak(n,delta){ mutate(d=>{ if(!d.tournament.tiebreak)d.tournament.tiebreak={}; d.tournament.tiebreak[n]=(d.tournament.tiebreak[n]||0)+delta; return d; }); }
   function delHist(i){ mutate(d=>{ if(d.history) d.history.splice(i,1); return d; }); setDelHistArm(null); setHistSel(null); }
@@ -1508,13 +1515,21 @@ function Tournament({data,me,role,mutate}){
     return rows;
   }
   function histSwissStandings(h){
-    if(h.standings&&h.standings.length) return h.standings;
-    /* older archives have no stored standings: rebuild the Swiss table from the Swiss matches */
-    const ms=histMatches(h); const wl={}; const order=[];
-    ms.forEach(m=>{ if(m.st!=="Swiss")return; [m.a,m.b].forEach(n=>{ if(n&&!(n in wl)){ wl[n]={name:n,w:0,l:0,riotId:"",deck:""}; order.push(n); } }); });
-    ms.forEach(m=>{ if(m.st!=="Swiss"||!m.winner)return; if(m.bye){ if(wl[m.a])wl[m.a].w++; return; } const L=m.a===m.winner?m.b:m.a; if(wl[m.winner])wl[m.winner].w++; if(wl[L])wl[L].l++; });
-    return order.map(n=>wl[n]).sort((a,b)=>(b.w-a.w)||a.name.localeCompare(b.name));
+    let base;
+    if(h.standings&&h.standings.length){ base=h.standings; }
+    else {
+      /* older archives have no stored standings: rebuild the Swiss table from the Swiss matches */
+      const ms=histMatches(h); const wl={}; const order=[];
+      ms.forEach(m=>{ if(m.st!=="Swiss")return; [m.a,m.b].forEach(n=>{ if(n&&!(n in wl)){ wl[n]={name:n,w:0,l:0,riotId:"",deck:""}; order.push(n); } }); });
+      ms.forEach(m=>{ if(m.st!=="Swiss"||!m.winner)return; if(m.bye){ if(wl[m.a])wl[m.a].w++; return; } const L=m.a===m.winner?m.b:m.a; if(wl[m.winner])wl[m.winner].w++; if(wl[L])wl[L].l++; });
+      base=order.map(n=>wl[n]).sort((a,b)=>(b.w-a.w)||a.name.localeCompare(b.name));
+    }
+    const manual=h.swissManual;
+    if(manual&&manual.length){ const byName={}; base.forEach(p=>{ byName[p.name]=p; }); const seen={}; const ordered=manual.filter(n=>{ if(seen[n]||!byName[n])return false; seen[n]=1; return true; }).map(n=>byName[n]); return ordered.concat(base.filter(p=>!seen[p.name])); }
+    return base;
   }
+  function moveHistSwiss(hi,i,dir){ mutate(d=>{ const h=(d.history||[])[hi]; if(!h)return d; const ss=histSwissStandings(h); const j=i+dir; if(j<0||j>=ss.length)return d; const names=ss.map(p=>p.name); const tmp=names[i];names[i]=names[j];names[j]=tmp; h.swissManual=names; return d; }); }
+  function resetHistSwiss(hi){ mutate(d=>{ const h=(d.history||[])[hi]; if(h) delete h.swissManual; return d; }); }
   function histRepathTri(h,changedKey){
     /* changing a Triangle result re-paths the bracket: winners/losers advance to the right next
        matches, and anything downstream of the change is cleared so it can be replayed. */
@@ -1637,13 +1652,20 @@ function Tournament({data,me,role,mutate}){
                 {dm.map((m,mi)=>m.st==="Swiss"&&m.r===r?row(m,mi):null)}
               </div>)}
               {(()=>{ const ss=histSwissStandings(detail); return ss.length>0&&<div style={{marginTop:"12px",borderTop:"1px solid #ffffff12",paddingTop:"8px"}}>
-                <div style={{fontSize:"14px",color:"#948a74",fontFamily:"'Cinzel',serif",letterSpacing:".05em",margin:"2px 0 4px"}}>Swiss standings</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px",margin:"2px 0 4px"}}>
+                  <div style={{fontSize:"14px",color:"#948a74",fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>Swiss standings</div>
+                  {isAdmin&&detail.swissManual?<button className="btn" onClick={()=>resetHistSwiss(histSel)} style={{padding:"3px 9px",background:"transparent",border:"1px solid #3a3a3a",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px",flexShrink:0}}>Reset order</button>:null}
+                </div>
                 {ss.map((p,i)=>(
                   <div key={"ss"+i} style={{display:"flex",alignItems:"center",gap:"10px",padding:"6px 0",borderBottom:"1px solid #c8a96e10"}}>
                     <span style={{width:"22px",fontFamily:"'Cinzel',serif",color:i<8?C.gold:"#3a3a3a",fontSize:"16px",fontWeight:900}}>{i+1}</span>
                     <span style={{flex:1,minWidth:0,fontSize:"16px",color:C.text}}>{p.name}{p.riotId?<span style={{color:C.muted,fontSize:"13px"}}> · {p.riotId}</span>:null}</span>
                     {p.deck?<a href={"https://lor.turny.gg/en/decks/"+p.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"14px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}
                     <span style={{fontSize:"15px",color:C.muted,fontFamily:"'Cinzel',serif"}}>{p.w}-{p.l}</span>
+                    {isAdmin?<div style={{display:"flex",flexDirection:"column",gap:"1px"}}>
+                      <button className="btn" onClick={()=>moveHistSwiss(histSel,i,-1)} disabled={i===0} style={{padding:"0 6px",lineHeight:"13px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:i===0?"#333":C.muted,fontSize:"11px"}}>▲</button>
+                      <button className="btn" onClick={()=>moveHistSwiss(histSel,i,1)} disabled={i===ss.length-1} style={{padding:"0 6px",lineHeight:"13px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:i===ss.length-1?"#333":C.muted,fontSize:"11px"}}>▼</button>
+                    </div>:null}
                   </div>
                 ))}
               </div>; })()}
@@ -1676,7 +1698,10 @@ function Tournament({data,me,role,mutate}){
 
   const standingsBox=(live)=>(
       <div style={box}>
-        <div style={{...sLbl,marginBottom:"10px"}}>{live?"Standings":"Swiss standings"}</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
+          <div style={sLbl}>{live?"Standings":"Swiss standings"}</div>
+          {live&&isAdmin&&t.swissManual?<button className="btn" onClick={resetSwissOrder} style={{padding:"4px 10px",background:"transparent",border:"1px solid #3a3a3a",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"13px",flexShrink:0}}>Reset order</button>:null}
+        </div>
         <div style={{display:"flex",alignItems:"center",gap:"10px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"13px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
           <span style={{width:"20px"}}>#</span><span style={{flex:1}}>Player</span><span style={{fontSize:"12px"}}>Bh · Sk</span><span style={{minWidth:"46px",textAlign:"right"}}>W-L</span>
         </div>
@@ -1689,8 +1714,8 @@ function Tournament({data,me,role,mutate}){
             {(()=>{const url=deckUrl(uu.deck);return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:"15px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null;})()}
             <span style={{fontSize:"14px",color:"#8a8172",fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>Bh {buch(n,rec)} · Sk {solk(n,rec)}</span>
             {live&&isAdmin&&<div style={{display:"flex",flexDirection:"column",gap:"1px"}}>
-              <button className="btn" onClick={()=>setTiebreak(n,1)} style={{padding:"0 7px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:C.muted,fontSize:"13px",lineHeight:"17px"}}>▲</button>
-              <button className="btn" onClick={()=>setTiebreak(n,-1)} style={{padding:"0 7px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:C.muted,fontSize:"13px",lineHeight:"17px"}}>▼</button>
+              <button className="btn" onClick={()=>moveSwiss(i,-1)} disabled={i===0} style={{padding:"0 7px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:i===0?"#333":C.muted,fontSize:"13px",lineHeight:"17px"}}>▲</button>
+              <button className="btn" onClick={()=>moveSwiss(i,1)} disabled={i===stand.length-1} style={{padding:"0 7px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:i===stand.length-1?"#333":C.muted,fontSize:"13px",lineHeight:"17px"}}>▼</button>
             </div>}
             {live&&isAdmin&&t.phase!=="done"&&(kickArm===n
               ? <button className="btn" onClick={()=>kickPlayer(n)} style={{flexShrink:0,padding:"4px 9px",background:"#3a1010",border:"1px solid #a33",borderRadius:"6px",color:"#f88",fontFamily:"'Cinzel',serif",fontSize:"13px",fontWeight:700}}>Sure?</button>
@@ -1703,7 +1728,7 @@ function Tournament({data,me,role,mutate}){
           </div>}
           </div>
         ); })}
-        {live?<div style={{fontSize:"15px",color:"#948a74",marginTop:"8px",lineHeight:1.5}}>Sorted by wins, then tiebreakers. Use ▲▼ to settle a remaining tie. Top 8 advance to the Triangle.</div>:null}
+        {live?<div style={{fontSize:"15px",color:"#948a74",marginTop:"8px",lineHeight:1.5}}>Sorted by wins, then tiebreakers. Use ▲▼ to reorder freely; that order is kept and seeds the Triangle. Top 8 advance.{t.swissManual?" The order is set manually right now.":""}</div>:null}
       </div>
   );
   const swissRoundsBox=((t.phase==="triangle"||t.phase==="done")&&(t.rounds||[]).some(rd=>(rd.matches||[]).length))?(
