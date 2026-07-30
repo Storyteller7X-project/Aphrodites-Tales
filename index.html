@@ -149,7 +149,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=86;
+const BUILD=87;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -1549,8 +1549,12 @@ function Tournament({data,me,role,mutate}){
     const rows=Object.keys(acc).map(n=>Object.assign({},acc[n],{swissPlace:sp[n]||null,place:place[n]||null,deck:dk[n]||"",riotId:rid[n]||""}));
     rows.sort((x,y)=>{ if(x.place&&y.place) return x.place-y.place; if(x.place) return -1; if(y.place) return 1;
       return (x.swissPlace||999)-(y.swissPlace||999); });
+    const manual=h.finalManual;
+    if(manual&&manual.length){ const byName={}; rows.forEach(r=>{ byName[r.name]=r; }); const seen={}; const ordered=manual.filter(n=>{ if(seen[n]||!byName[n])return false; seen[n]=1; return true; }).map(n=>byName[n]); return ordered.concat(rows.filter(r=>!seen[r.name])); }
     return rows;
   }
+  function moveHistFinal(hi,i,dir){ mutate(d=>{ const h=(d.history||[])[hi]; if(!h)return d; const fr=histFinal(h); const j=i+dir; if(j<0||j>=fr.length)return d; const names=fr.map(r=>r.name); const tmp=names[i];names[i]=names[j];names[j]=tmp; h.finalManual=names; return d; }); }
+  function resetHistFinal(hi){ mutate(d=>{ const h=(d.history||[])[hi]; if(h) delete h.finalManual; return d; }); }
   function histSwissStandings(h){
     let base;
     if(h.standings&&h.standings.length){ base=h.standings; }
@@ -1640,25 +1644,33 @@ function Tournament({data,me,role,mutate}){
           {(()=>{ const fr=histFinal(detail); if(!fr.length) return null;
             const anyTri=fr.some(r=>r.tw||r.tl);
             return <div style={box}>
-              <div style={{...sLbl,marginBottom:"10px"}}>Final standings</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px",marginBottom:"10px"}}>
+                <div style={sLbl}>Final standings</div>
+                {isAdmin&&detail.finalManual?<button className="btn" onClick={()=>resetHistFinal(histSel)} style={{padding:"3px 9px",background:"transparent",border:"1px solid #3a3a3a",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"12px",flexShrink:0}}>Reset order</button>:null}
+              </div>
               <div style={{display:"flex",alignItems:"center",gap:"8px",padding:"3px 0",borderBottom:"1px solid #c8a96e22",fontSize:"12px",color:C.muted,fontFamily:"'Cinzel',serif",letterSpacing:".05em"}}>
                 <span style={{width:"22px"}}>#</span><span style={{flex:1}}>Player</span>
                 <span style={{width:"48px",textAlign:"right"}}>Deck</span>
                 <span style={{width:"52px",textAlign:"right"}}>Total</span>
                 <span style={{width:"74px",textAlign:"right"}}>Swiss</span>
                 <span style={{width:"58px",textAlign:"right"}}>Triangle</span>
+                {isAdmin?<span style={{width:"20px"}}></span>:null}
               </div>
               {fr.map((r,i)=>(
                 <div key={r.name} style={{display:"flex",alignItems:"center",gap:"8px",padding:"7px 0",borderBottom:"1px solid #c8a96e10"}}>
-                  <span style={{width:"22px",fontFamily:"'Cinzel',serif",color:r.place?C.gold:"#3a3a3a",fontSize:"17px",fontWeight:900}}>{r.place||i+1}</span>
+                  <span style={{width:"22px",fontFamily:"'Cinzel',serif",color:i<4?C.gold:"#3a3a3a",fontSize:"17px",fontWeight:900}}>{i+1}</span>
                   <span style={{flex:1,minWidth:0,fontSize:"17px",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}{r.riotId?<span style={{color:C.muted,fontSize:"13px"}}> · {r.riotId}</span>:null}</span>
                   <span style={{width:"48px",textAlign:"right"}}>{r.deck?<a href={"https://lor.turny.gg/en/decks/"+r.deck} target="_blank" rel="noopener noreferrer" style={{fontSize:"14px",color:"#5599cc",textDecoration:"none",fontFamily:"'Cinzel',serif"}}>deck ↗</a>:null}</span>
                   <span style={{width:"52px",textAlign:"right",fontSize:"15px",color:C.text,fontFamily:"'Cinzel',serif",fontWeight:700}}>{(r.sw+r.tw)}-{(r.sl+r.tl)}</span>
                   <span style={{width:"74px",textAlign:"right",fontSize:"15px",color:C.muted,fontFamily:"'Cinzel',serif",whiteSpace:"nowrap"}}>{r.swissPlace?<span style={{fontSize:"13px",color:"#6f6a5e"}}>{"#"+r.swissPlace+" "}</span>:null}{r.sw}-{r.sl}</span>
                   <span style={{width:"58px",textAlign:"right",fontSize:"15px",color:(r.tw||r.tl)?C.muted:"#3a3a3a",fontFamily:"'Cinzel',serif"}}>{(r.tw||r.tl)?(r.tw+"-"+r.tl):"-"}</span>
+                  {isAdmin?<div style={{display:"flex",flexDirection:"column",gap:"1px"}}>
+                    <button className="btn" onClick={()=>moveHistFinal(histSel,i,-1)} disabled={i===0} style={{padding:"0 6px",lineHeight:"13px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:i===0?"#333":C.muted,fontSize:"11px"}}>▲</button>
+                    <button className="btn" onClick={()=>moveHistFinal(histSel,i,1)} disabled={i===fr.length-1} style={{padding:"0 6px",lineHeight:"13px",background:"transparent",border:"1px solid #333",borderRadius:"4px",color:i===fr.length-1?"#333":C.muted,fontSize:"11px"}}>▼</button>
+                  </div>:null}
                 </div>
               ))}
-              {anyTri?<div style={{fontSize:"13px",color:"#7a7264",marginTop:"8px",lineHeight:1.5}}>Places 1 to 4 come from the Triangle, the rest follow the Swiss order. The Swiss column shows the Swiss place and record.</div>:null}
+              {anyTri?<div style={{fontSize:"13px",color:"#7a7264",marginTop:"8px",lineHeight:1.5}}>Places 1 to 4 come from the Triangle, the rest follow the Swiss order.{isAdmin?" Use ▲▼ to reorder freely; that order is kept.":""}</div>:null}
             </div>; })()}
           {(()=>{ const dm=histMatches(detail); if(!dm.length) return null;
             const swissR=Array.from(new Set(dm.filter(m=>m.st==="Swiss").map(m=>m.r))).sort((a,b)=>a-b);
