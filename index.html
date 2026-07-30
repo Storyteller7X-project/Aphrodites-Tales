@@ -149,7 +149,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=85;
+const BUILD=86;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -655,9 +655,11 @@ function AdminHome({data,mutate,me,db,starters}){
   );
 
   return (
+   <React.Fragment>
+    <PhaseBanner data={data}/>
     <div style={{padding:"14px 18px",maxWidth:"640px",margin:"0 auto",display:"flex",flexDirection:"column",gap:"12px"}} className="fu">
       <div style={{display:"flex",gap:"3px",background:"#090b12",borderRadius:"10px",padding:"4px",border:"1px solid #c8a96e1a"}}>
-        {tab("home","Home")}{tab("players","Accounts")}{tab("bracket","Bracket")}
+        {tab("home","Home")}{tab("players","Accounts")}{tab("bracket","Bracket")}{tab("rules","Rulebook")}
       </div>
 
       {atab==="home" && (
@@ -750,9 +752,11 @@ function AdminHome({data,mutate,me,db,starters}){
       )}
 
       {atab==="bracket" && <Tournament data={data} me={me} role="admin" mutate={mutate}/>}
+      {atab==="rules" && <RulebookView/>}
 
       {msg && <div style={{padding:"10px 14px",background:"#0a1a0a",border:"1px solid #3a6a3a",borderRadius:"8px",color:"#a8d8a8",fontSize:"18px",fontFamily:"'Cinzel',serif"}}>{msg}</div>}
     </div>
+   </React.Fragment>
   );
 }
 
@@ -782,15 +786,17 @@ function PlayerHome({data,me,db,starters,mutate}){
 
   return (
     <div>
+      <PhaseBanner data={data}/>
       {locked && <div style={{background:"#1a1400",borderBottom:"1px solid #c8a96e33",padding:"7px",textAlign:"center",fontFamily:"'Cinzel',serif",fontSize:"16px",color:C.gold}}>Prep Time is over. Your deck is locked for the matchday.</div>}
       <div style={{display:"flex",background:"#090b12",borderBottom:"1px solid #c8a96e1a",position:"sticky",top:0,zIndex:40}}>
-        {tb("deck","My Deck")}{tb("store","Store")}{tb("packs","Buy Packs")}{tb("decks","Competitors")}{tb("board","Leaderboard")}{tb("tourney","Tournament")}
+        {tb("deck","My Deck")}{tb("store","Store")}{tb("packs","Buy Packs")}{tb("decks","Competitors")}{tb("board","Leaderboard")}{tb("tourney","Tournament")}{tb("rules","Rulebook")}
       </div>
       {tab==="deck" && <DeckView db={db} deck={deck} locked={locked} coins={coins} onRemove={removeCards}/>}
       {tab==="store" && <Store db={db} deck={deck} coins={coins} locked={locked} onBuy={buyCard}/>}
       {tab==="packs" && <Packs db={db} deck={deck} coins={coins} locked={locked} onCharge={chargePack} onKeep={keepPack} onSkip={skipPack}/>}
       {tab==="board" && <div style={{padding:"14px 18px",maxWidth:"720px",margin:"0 auto"}} className="fu"><Leaderboard data={data} me={me}/></div>}
       {tab==="tourney" && <Tournament data={data} me={me} role="player" mutate={mutate}/>}
+      {tab==="rules" && <RulebookView/>}
       {tab==="decks" && <div style={{padding:"14px 18px",maxWidth:"720px",margin:"0 auto"}} className="fu">
         <div style={{...sCard,marginBottom:"12px"}}>
           <div style={{...sLbl,marginBottom:"6px"}}>Other players' decks</div>
@@ -813,6 +819,37 @@ function PlayerHome({data,me,db,starters,mutate}){
 /* ============================================================
    SPECTATOR (foundation)
    ============================================================ */
+function PhaseBanner({data}){
+  const tt=(data&&data.tournament)||{phase:"idle"};
+  const sp=(data&&data.seasonPhase)||((data&&data.prepEnded)?"locked":"building");
+  let label,note,col,bg;
+  if(tt.phase==="swiss"||tt.phase==="triangle"){ label="Tournament live"; note="matches are being played"; col="#c0685c"; bg="#241110"; }
+  else if(tt.phase==="signup"){ label="Check-in open"; note="players check in before the tournament starts"; col="#c6a648"; bg="#211b06"; }
+  else if(tt.phase==="done"){ label="Tournament finished"; note="results are in the archive"; col="#c8a96e"; bg="#1b1608"; }
+  else if(sp==="locked"||sp==="matchday"){ label="Decks locked"; note="everyone can view decks, waiting for the tournament"; col="#6ca471"; bg="#131f0f"; }
+  else { label="Deck building"; note="players are building their decks"; col="#5c8bba"; bg="#101b27"; }
+  const se=(data&&data.season)||1, wk=(data&&data.week)||1;
+  return (
+    <div style={{background:bg,borderBottom:"1px solid "+col+"55",padding:"9px 16px",display:"flex",alignItems:"center",gap:"11px",justifyContent:"center",flexWrap:"wrap"}}>
+      <span style={{width:"9px",height:"9px",borderRadius:"50%",background:col,boxShadow:"0 0 8px "+col+"cc",flexShrink:0}}/>
+      <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",letterSpacing:".14em",textTransform:"uppercase",color:col,fontWeight:700}}>{label}</span>
+      <span style={{fontSize:"14px",color:"#8f8674"}}>{note}</span>
+      <span style={{fontFamily:"'Cinzel',serif",fontSize:"13px",color:"#6f6a5e",letterSpacing:".08em"}}>Season {se} · Week {wk}</span>
+    </div>
+  );
+}
+function RulebookView(){
+  const base="https://docs.google.com/document/d/1dr5woItgSk-AcAG2Gkdf5STRWZbdMXFYb2nba8P2ADg";
+  return (
+    <div style={{padding:"14px 18px",maxWidth:"900px",margin:"0 auto"}} className="fu">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px",gap:"10px",flexWrap:"wrap"}}>
+        <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"22px",fontWeight:700,letterSpacing:".04em"}}>Rulebook</div>
+        <a href={base+"/edit"} target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Cinzel',serif",fontSize:"14px",color:C.gold,textDecoration:"none",border:"1px solid #c8a96e55",borderRadius:"8px",padding:"7px 14px"}}>Open in new tab ↗</a>
+      </div>
+      <iframe src={base+"/preview"} title="Rulebook" style={{width:"100%",height:"78vh",border:"1px solid #c8a96e33",borderRadius:"10px",background:"#fff"}}/>
+    </div>
+  );
+}
 function lbOrderOf(us,manual){
   const players=Object.keys(us).filter(n=>us[n].role==="player");
   const auto=(a,b)=>((us[b].aphro||0)-(us[a].aphro||0))||a.localeCompare(b);
@@ -1594,8 +1631,9 @@ function Tournament({data,me,role,mutate}){
       ? <React.Fragment>
           <button className="btn" onClick={()=>setHistSel(null)} style={{marginBottom:"12px",padding:"8px 14px",background:"transparent",border:"1px solid #333",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"16px"}}>← All tournaments</button>
           <div style={{...box,textAlign:"center",background:"#1a1400",borderColor:"#c8a96e66"}}>
-            {detail.name?<div style={{fontFamily:"'Cinzel',serif",color:C.text,fontSize:"18px",marginBottom:"4px"}}>{detail.name}</div>:null}
-            <div style={{fontFamily:"'Cinzel',serif",color:"#c8a96e",fontSize:"12px",letterSpacing:".2em",marginBottom:"4px"}}>CHAMPION</div>
+            <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"20px",fontWeight:700,marginBottom:"2px"}}>Season {detail.s||1} · Week {detail.wk||0}</div>
+            {detail.name?<div style={{fontFamily:"'Cinzel',serif",color:C.muted,fontSize:"15px",marginBottom:"6px"}}>{detail.name}</div>:null}
+            <div style={{fontFamily:"'Cinzel',serif",color:"#c8a96e",fontSize:"12px",letterSpacing:".2em",marginBottom:"4px",marginTop:"6px"}}>CHAMPION</div>
             <div className="glow" style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"26px",fontWeight:900}}>{detail.champion||"-"}</div>
             <div style={{fontSize:"14px",color:C.muted,marginTop:"6px"}}>{new Date(detail.date).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric"})}{detail.server?" · "+detail.server:""}</div>
           </div>
@@ -1682,7 +1720,7 @@ function Tournament({data,me,role,mutate}){
             <div key={i} className="btn" onClick={()=>setHistSel(i)} style={{...box,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",marginBottom:"8px"}}>
               <div>
                 <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"18px"}}>{h.champion||"-"} <span style={{color:C.muted,fontSize:"14px",fontWeight:400}}>champion</span></div>
-                <div style={{fontSize:"14px",color:C.muted}}>{h.name?h.name+" · ":""}{new Date(h.date).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric"})}{h.server?" · "+h.server:""} · {(h.standings||[]).length} players</div>
+                <div style={{fontSize:"14px",color:C.muted}}><span style={{color:"#b7a988",fontFamily:"'Cinzel',serif"}}>Season {h.s||1} · Week {h.wk||0}</span>{h.name?" · "+h.name:""} · {new Date(h.date).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric"})}{h.server?" · "+h.server:""} · {(h.standings||[]).length} players</div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
                 {isAdmin && (delHistArm===i
