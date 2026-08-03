@@ -153,7 +153,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=93;
+const BUILD=94;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -386,9 +386,9 @@ function AdminHome({data,mutate,me,db,starters}){
   const players=Object.keys(data.users||{}).filter(n=>n!==me);
 
   function setPhase(p){ mutate(d=>{ if(p==="building"&&d.tournament&&d.tournament.phase!=="idle"){ finishTournamentD(d); if(d.tournament.phase==="done") d.tournament={phase:"idle"}; } d.seasonPhase=p; d.prepEnded=(p!=="building"); if(p==="locked"){ const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"&&us[n].deck&&us[n].deck.length){ const dk=us[n].deck; const flat=[]; dk.forEach(e=>{ for(let i=0;i<(e.count||0);i++) flat.push(e.code); }); const cst=flat.map(c=>{ const cc=db&&db.by?db.by[c]:null; return cc?(cc[6]||0):0; }); const vt=cst.reduce((x,y)=>x+y,0); const so=cst.slice().sort((x,y)=>x-y); const md=cst.length?(cst.length%2?so[(cst.length-1)/2]:+((so[cst.length/2-1]+so[cst.length/2])/2).toFixed(2)):0; logStat(d,"deckLocks",{a:n,wk:d.week||1,deck:encodeDeck(dk),size:deckTotal(dk),champs:champCards(db,dk),valTotal:vt,valMean:cst.length?+(vt/cst.length).toFixed(2):0,valMedian:md,t:Date.now()}); } }); } return d; }); }
-  function newWeek(){ mutate(d=>{ if(d.tournament&&d.tournament.phase!=="idle"){ finishTournamentD(d); if(d.tournament.phase==="done") d.tournament={phase:"idle"}; } d.week=(d.week||1)+1; d.prepEnded=false; d.seasonPhase="building"; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player"){ us[n].coins=(us[n].coins||0)+100; logCoin(d,n,100,"weekly"); } }); return d; }); setMsg("New week started. +100 coins to all players."); }
+  function newWeek(){ mutate(d=>{ if(d.tournament&&d.tournament.phase!=="idle"){ finishTournamentD(d); if(d.tournament.phase==="done") d.tournament={phase:"idle"}; } d.week=(d.week||1)+1; d.prepEnded=false; d.seasonPhase="building"; const us=d.users||{}; Object.keys(us).forEach(n=>{ if(us[n].role==="player"){ us[n].coins=(us[n].coins||0)+100; logCoin(d,n,100,"weekly"); } }); return d; }); setMsg("New day started. +100 coins to all players."); }
   function delPlayer(n){ if(n===OWNER){ setDelArm(""); setMsg("The "+OWNER+" account cannot be deleted."); return; } mutate(d=>{ if(d.users) delete d.users[n]; return d; }); setDelArm(""); setMsg(n+" deleted."); }
-  function saveSW(){ const s=parseInt(swS,10), w=parseInt(swW,10); if(!(s>=1)||!(w>=1)){ setMsg("Season and week must be 1 or higher."); return; } mutate(d=>{ d.season=s; d.week=w; return d; }); setSwEdit(false); setMsg("Season "+s+", week "+w+" set."); }
+  function saveSW(){ const s=parseInt(swS,10), w=parseInt(swW,10); if(!(s>=1)||!(w>=1)){ setMsg("Season and day must be 1 or higher."); return; } mutate(d=>{ d.season=s; d.week=w; return d; }); setSwEdit(false); setMsg("Season "+s+", day "+w+" set."); }
   function resetSeason(){ mutate(d=>{ d.season=(d.season||1)+1; d.week=1; d.prepEnded=false; d.seasonPhase="building"; d.tournament={phase:"idle"}; const us=d.users||{}; Object.keys(us).forEach(function(n){ if(us[n].role==="player"){ const old=us[n].coins||0; us[n].starter=null; us[n].deck=null; us[n].coins=100; us[n].aphro=0; logCoin(d,n,100-old,"seasonreset"); } }); return d; }); setSeasonArm(false); setMsg("Season reset. All players are back to starter deck choice."); }
   async function exportStats(target,dateLabel){
     const ExcelJS=window.ExcelJS; if(!ExcelJS){ setMsg("Spreadsheet tool is still loading, try again in a moment."); return; }
@@ -673,13 +673,13 @@ function AdminHome({data,mutate,me,db,starters}){
               ? <div style={{display:"flex",alignItems:"center",gap:"7px",flexWrap:"wrap",marginBottom:"8px"}}>
                   <span style={{...sLbl}}>Season</span>
                   <input value={swS} onChange={e=>setSwS(e.target.value.replace(/[^0-9]/g,""))} style={{width:"52px",background:"#0d0f18",border:"1px solid #333",borderRadius:"6px",padding:"5px 7px",color:"#e8d5b0",fontSize:"15px",outline:"none"}}/>
-                  <span style={{...sLbl}}>Week</span>
+                  <span style={{...sLbl}}>Day</span>
                   <input value={swW} onChange={e=>setSwW(e.target.value.replace(/[^0-9]/g,""))} style={{width:"52px",background:"#0d0f18",border:"1px solid #333",borderRadius:"6px",padding:"5px 7px",color:"#e8d5b0",fontSize:"15px",outline:"none"}}/>
                   <button className="btn" onClick={saveSW} style={{padding:"5px 11px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"6px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"14px"}}>Save</button>
                   <button className="btn" onClick={()=>setSwEdit(false)} style={{padding:"5px 9px",background:"transparent",border:"1px solid #333",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"14px"}}>Cancel</button>
                 </div>
               : <div style={{display:"flex",alignItems:"center",gap:"9px",marginBottom:"6px"}}>
-                  <span style={{...sLbl}}>Season {data.season||1} · Week {data.week||1}</span>
+                  <span style={{...sLbl}}>Season {data.season||1} · Day {data.week||1}</span>
                   <button className="btn" onClick={()=>{setSwEdit(true);setSwS(String(data.season||1));setSwW(String(data.week||1));setMsg("");}} style={{padding:"3px 9px",background:"transparent",border:"1px solid #c8a96e33",borderRadius:"6px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"13px"}}>edit</button>
                 </div>}
             <div style={{fontSize:"17px",color:C.muted,marginBottom:"12px",lineHeight:1.6}}>Current phase: <strong style={{color:C.gold}}>{seasonPhase==="building"?"Deck building":seasonPhase==="locked"?"Deck lock":"Matchday"}</strong>. {seasonPhase==="building"?"Players build decks (buy, packs, remove) and cannot see other players' decks yet.":seasonPhase==="locked"?"Decks are locked. Players can now view everyone's decks and wait for the tournament.":"Players play with their locked decks and can view all decks. No editing until you reopen deck building."}</div>
@@ -691,7 +691,7 @@ function AdminHome({data,mutate,me,db,starters}){
               </React.Fragment>}
               {seasonPhase==="matchday" && <button className="btn" onClick={()=>setPhase("building")} style={{flex:1,minWidth:"150px",padding:"9px",background:"#0d1a2a",border:"1px solid #334466",borderRadius:"8px",color:"#5599cc",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Reopen deck building</button>}
             </div>
-            <button className="btn" onClick={newWeek} style={{width:"100%",padding:"9px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Start next week (+100 all)</button>
+            <button className="btn" onClick={newWeek} style={{width:"100%",padding:"9px",background:"#0d1a12",border:"1px solid #2a5a3a",borderRadius:"8px",color:"#6ac68a",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>Start next day (+100 all)</button>
             {isFullAdmin && <button className="btn" onClick={()=>seasonArm?resetSeason():setSeasonArm(true)} style={{width:"100%",marginTop:"10px",padding:"9px",background:seasonArm?"#3a1010":"transparent",border:"1px solid "+(seasonArm?"#a33":"#5a2a2a"),borderRadius:"8px",color:seasonArm?"#f88":"#a66",fontFamily:"'Cinzel',serif",fontSize:"17px",fontWeight:600}}>{seasonArm?"Confirm: reset season - clears every deck, back to starter choice":"Reset season (all players re-pick a starter deck)"}</button>}
           </div>
           <div style={sCard}>
@@ -838,7 +838,7 @@ function PhaseBanner({data}){
       <span style={{width:"9px",height:"9px",borderRadius:"50%",background:col,boxShadow:"0 0 8px "+col+"cc",flexShrink:0}}/>
       <span style={{fontFamily:"'Cinzel',serif",fontSize:"15px",letterSpacing:".14em",textTransform:"uppercase",color:col,fontWeight:700}}>{label}</span>
       <span style={{fontSize:"14px",color:"#8f8674"}}>{note}</span>
-      <span style={{fontFamily:"'Cinzel',serif",fontSize:"13px",color:"#6f6a5e",letterSpacing:".08em"}}>Season {se} · Week {wk}</span>
+      <span style={{fontFamily:"'Cinzel',serif",fontSize:"13px",color:"#6f6a5e",letterSpacing:".08em"}}>Season {se} · Day {wk}</span>
     </div>
   );
 }
@@ -976,7 +976,7 @@ function isChampCode(db,code){ const c=db.by[code]; return !!c&&cChamp(c); }
 function deckTotal(deck){ return (deck||[]).reduce((s,e)=>s+(e.count||0),0); }
 function logStat(d,cat,entry){ if(!d.stats)d.stats={};
   if(!d.stats.config)d.stats.config=[]; const cs=d.season||1,cw=d.week||1;
-  if(!d.stats.config.some(e=>e.s===cs&&e.wk===cw)) d.stats.config.push({s:cs,wk:cw,weeklyCoins:100,newAccountBase:100,newAccountPerMissedWeek:95,checkinBonus:5,packCost:ECON.PACK_COST,deckMin:ECON.DECK_FLOOR,deckMax:ECON.DECK_MAX,maxCopies:ECON.MAX_COPIES,maxChampCards:ECON.MAX_CHAMPS,packSize:ECON.PACK_SIZE,t:Date.now()});
+  if(!d.stats.config.some(e=>e.s===cs&&e.wk===cw)) d.stats.config.push({s:cs,wk:cw,weeklyCoins:100,newAccountBase:100,newAccountPerMissedWeek:100,checkinBonus:20,packCost:ECON.PACK_COST,deckMin:ECON.DECK_FLOOR,deckMax:ECON.DECK_MAX,maxCopies:ECON.MAX_COPIES,maxChampCards:ECON.MAX_CHAMPS,packSize:ECON.PACK_SIZE,t:Date.now()});
   if(!d.stats[cat])d.stats[cat]=[];
   if(entry.s===undefined) entry.s=cs;
   if(entry.id===undefined){ d.stats._seq=(d.stats._seq||0)+1; entry.id=d.stats._seq; }
@@ -1495,7 +1495,7 @@ function Tournament({data,me,role,mutate}){
   function undo(ri,mi){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; mm.confirmed=false; mm.winner=null; mm.reports={}; return d; }); }
   function nextRound(){ mutate(d=>{ const tt=d.tournament; const cur=tt.rounds[tt.round-1]; if(cur.matches.some(m=>!m.confirmed))return d; if(tt.round>=tt.totalRounds)return d; const rc=computeRecords(tt.players.concat(Object.keys(tt.kicked||{})),tt.rounds); const order=standing(tt.players,rc); const m=pairRound(order,rc); tt.rounds.push({matches:m}); tt.round++; return d; }); }
   function reset(){ mutate(d=>{ d.tournament={phase:"idle"}; return d; }); }
-  function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups||!tt.signups[me])return d; if(Date.now()<(tt.startTime-7200000))return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+5; logCoin(d,me,5,"checkin"); const cs=d.season||1,cw=d.week||1; const already=(d.stats&&d.stats.checkins||[]).some(e=>e.a===me&&((typeof e.s==="number")?e.s:1)===cs&&(e.wk||0)===cw); if(!already) logStat(d,"checkins",{a:me,s:cs,wk:cw,t:Date.now()}); return d; }); }
+  function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups||!tt.signups[me])return d; if(Date.now()<(tt.startTime-7200000))return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+20; logCoin(d,me,20,"checkin"); const cs=d.season||1,cw=d.week||1; const already=(d.stats&&d.stats.checkins||[]).some(e=>e.a===me&&((typeof e.s==="number")?e.s:1)===cs&&(e.wk||0)===cw); if(!already) logStat(d,"checkins",{a:me,s:cs,wk:cw,t:Date.now()}); return d; }); }
   function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; } return d; }); }
   function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players.concat(Object.keys(tt.kicked||{})),tt.rounds); const ord=swissBoard(tt.players,rc,tt.rounds,tt.tiebreak||{},tt.swissManual||null); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
   function moveSwiss(i,dir){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords((tt.players||[]).concat(Object.keys(tt.kicked||{})),tt.rounds); const ord=swissBoard(tt.players||[],rc,tt.rounds,tt.tiebreak||{},tt.swissManual||null); const j=i+dir; if(j<0||j>=ord.length)return d; const a=ord.slice(); const tmp=a[i];a[i]=a[j];a[j]=tmp; tt.swissManual=a; return d; }); }
@@ -1668,7 +1668,7 @@ function Tournament({data,me,role,mutate}){
       ? <React.Fragment>
           <button className="btn" onClick={()=>setHistSel(null)} style={{marginBottom:"12px",padding:"8px 14px",background:"transparent",border:"1px solid #333",borderRadius:"8px",color:C.muted,fontFamily:"'Cinzel',serif",fontSize:"16px"}}>← All tournaments</button>
           <div style={{...box,textAlign:"center",background:"#1a1400",borderColor:"#c8a96e66"}}>
-            <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"20px",fontWeight:700,marginBottom:"2px"}}>Season {detail.s||1} · Week {detail.wk||0}</div>
+            <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"20px",fontWeight:700,marginBottom:"2px"}}>Season {detail.s||1} · Day {detail.wk||0}</div>
             {detail.name?<div style={{fontFamily:"'Cinzel',serif",color:C.muted,fontSize:"15px",marginBottom:"6px"}}>{detail.name}</div>:null}
             <div style={{fontFamily:"'Cinzel',serif",color:"#c8a96e",fontSize:"12px",letterSpacing:".2em",marginBottom:"4px",marginTop:"6px"}}>CHAMPION</div>
             <div className="glow" style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"26px",fontWeight:900}}>{detail.champion||"-"}</div>
@@ -1765,7 +1765,7 @@ function Tournament({data,me,role,mutate}){
             <div key={i} className="btn" onClick={()=>setHistSel(i)} style={{...box,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:"10px",marginBottom:"8px"}}>
               <div>
                 <div style={{fontFamily:"'Cinzel',serif",color:C.gold,fontSize:"18px"}}>{h.champion||"-"} <span style={{color:C.muted,fontSize:"14px",fontWeight:400}}>champion</span></div>
-                <div style={{fontSize:"14px",color:C.muted}}><span style={{color:"#b7a988",fontFamily:"'Cinzel',serif"}}>Season {h.s||1} · Week {h.wk||0}</span>{h.name?" · "+h.name:""} · {new Date(h.date).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric"})}{h.server?" · "+h.server:""} · {(h.standings||[]).length} players</div>
+                <div style={{fontSize:"14px",color:C.muted}}><span style={{color:"#b7a988",fontFamily:"'Cinzel',serif"}}>Season {h.s||1} · Day {h.wk||0}</span>{h.name?" · "+h.name:""} · {new Date(h.date).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric"})}{h.server?" · "+h.server:""} · {(h.standings||[]).length} players</div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
                 {isAdmin && (delHistArm===i
@@ -2182,7 +2182,7 @@ function App(){
     });
   }
   function login(n){ setMe(n); try{sessionStorage.setItem("at_me",n);}catch(e){} }
-  async function register(n,pw,riot,disc){ const h=await pwHash(n,pw); mutate(d=>{ if(!d.users)d.users={}; if(d.users[n]) return d; const np=freshPlayer(h); np.coins=100+95*((d.week||1)-1); np.riotId=riot||""; np.discordId=disc||""; np.regSeason=d.season||1; np.regWeek=d.week||1; let mxA=d.accSeq||0; Object.keys(d.users).forEach(u=>{ const a=d.users[u].accId; if(typeof a==="number"&&a>mxA)mxA=a; }); np.accId=mxA+1; d.accSeq=mxA+1; d.users[n]=np; logCoin(d,n,np.coins,"register"); return d; }); }
+  async function register(n,pw,riot,disc){ const h=await pwHash(n,pw); mutate(d=>{ if(!d.users)d.users={}; if(d.users[n]) return d; const np=freshPlayer(h); np.coins=100+100*((d.week||1)-1); np.riotId=riot||""; np.discordId=disc||""; np.regSeason=d.season||1; np.regWeek=d.week||1; let mxA=d.accSeq||0; Object.keys(d.users).forEach(u=>{ const a=d.users[u].accId; if(typeof a==="number"&&a>mxA)mxA=a; }); np.accId=mxA+1; d.accSeq=mxA+1; d.users[n]=np; logCoin(d,n,np.coins,"register"); return d; }); }
   function requestReset(n){ mutate(d=>{ if(!d.users||!d.users[n])return d; if(!d.pwRequests)d.pwRequests={}; d.pwRequests[n]=Date.now(); return d; }); }
   function logout(){ setMe(null); setSpectator(false); try{sessionStorage.removeItem("at_me");}catch(e){} }
   async function changePw(current,newPw){ const u=data.users[me]; if(!u) return "Not logged in."; if(!newPw||!newPw.trim()) return "Enter a new password."; if(!u.noPassword){ const ok=await pwVerify(me,current,u.password); if(!ok) return "Current password is wrong."; } const h=await pwHash(me,newPw.trim()); mutate(d=>{ if(d.users[me]){ d.users[me].password=h; d.users[me].noPassword=false; } return d; }); return null; }
