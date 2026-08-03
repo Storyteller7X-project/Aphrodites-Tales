@@ -153,7 +153,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=92;
+const BUILD=93;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -1204,7 +1204,7 @@ function Packs({db,deck,coins,locked,onCharge,onKeep,onSkip}){
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(132px,1fr))",gap:"14px"}}>
           {REGIONS.map(r=>{ const canOpen=!locked&&coins>=ECON.PACK_COST&&deckTotal(deck)<ECON.DECK_MAX; const rune=db.runeChamps[r]||[];
             return (
-              <div key={r} onClick={canOpen?()=>open(r):undefined} className={canOpen?"btn packcard":""} style={{cursor:canOpen?"pointer":"not-allowed",opacity:canOpen?1:.45,borderRadius:"14px",overflow:"hidden",position:"relative",background:"linear-gradient(165deg,"+REGCOL[r]+"3a,#0a0c14 60%)",border:"1px solid "+REGCOL[r]+"77",boxShadow:"inset 0 0 34px "+REGCOL[r]+"22",padding:"18px 12px 14px",display:"flex",flexDirection:"column",alignItems:"center",gap:"10px",minHeight:"196px"}}>
+              <div key={r} onClick={canOpen?()=>open(r):undefined} className={canOpen?"btn packcard":""} style={{cursor:canOpen?"pointer":"not-allowed",opacity:canOpen?1:.45,borderRadius:"14px",overflow:"hidden",position:"relative",background:"linear-gradient(165deg,"+REGCOL[r]+"3a,#0a0c14 60%)",border:"1px solid "+REGCOL[r]+"77",boxShadow:"inset 0 0 34px "+REGCOL[r]+"22",padding:"18px 12px 14px",display:"flex",flexDirection:"column",alignItems:"center",gap:"10px",minHeight:"260px"}}>
                 <div className="shine" style={{position:"absolute",top:0,left:"-45%",width:"45%",height:"100%",background:"linear-gradient(90deg,transparent,#ffffff20,transparent)",transform:"skewX(-20deg)",pointerEvents:"none"}}/>
                 <div style={{position:"absolute",top:"8px",left:0,right:0,height:"1px",background:"linear-gradient(90deg,transparent,"+REGCOL[r]+"88,transparent)"}}/>
                 <RegionLogo r={r} size={62}/>
@@ -1214,7 +1214,7 @@ function Packs({db,deck,coins,locked,onCharge,onKeep,onSkip}){
             ); })}
             {(()=>{ const canOpen=!locked&&coins>=ECON.PACK_COST&&deckTotal(deck)<ECON.DECK_MAX; const wc=db.wildChamps||[];
               return (
-              <div key="Wild" onClick={canOpen?()=>open("Wild"):undefined} className={canOpen?"btn packcard wild-card":"wild-card"} style={{cursor:canOpen?"pointer":"not-allowed",opacity:canOpen?1:.45,borderRadius:"14px",overflow:"hidden",position:"relative",padding:"18px 12px 14px",display:"flex",flexDirection:"column",alignItems:"center",gap:"10px",minHeight:"196px"}}>
+              <div key="Wild" onClick={canOpen?()=>open("Wild"):undefined} className={canOpen?"btn packcard wild-card":"wild-card"} style={{cursor:canOpen?"pointer":"not-allowed",opacity:canOpen?1:.45,borderRadius:"14px",overflow:"hidden",position:"relative",padding:"18px 12px 14px",display:"flex",flexDirection:"column",alignItems:"center",gap:"10px",minHeight:"260px"}}>
                 <div className="shine" style={{position:"absolute",top:0,left:"-45%",width:"45%",height:"100%",background:"linear-gradient(90deg,transparent,#ffffff2e,transparent)",transform:"skewX(-20deg)",pointerEvents:"none",zIndex:2}}/>
                 <div style={{width:"62px",height:"62px",borderRadius:"50%",position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}}>
                   <div className="wild-glow" style={{position:"absolute",inset:0,borderRadius:"50%",WebkitMask:"radial-gradient(circle,transparent 52%,#000 55%)",mask:"radial-gradient(circle,transparent 52%,#000 55%)"}}/>
