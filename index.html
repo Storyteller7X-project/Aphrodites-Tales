@@ -153,7 +153,7 @@ async function pwVerify(user,plain,stored){
 const ADMIN_PW="cukD!ujndl&7WoDY*2Ciy";
 function freshAdmin(){ return {password:ADMIN_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
 const MOD_PW="lcZW#2WoPE!ink2K-myY8";
-const BUILD=94;
+const BUILD=95;
 try{ console.log("Aphrodites Tales build "+BUILD); }catch(e){}
 const OWNER="Storyteller";
 function freshMod(){ return {password:MOD_PW,role:"admin",coins:0,deck:null,starter:null,riotId:"",discordId:"",aphro:0}; }
@@ -1496,11 +1496,11 @@ function Tournament({data,me,role,mutate}){
   function nextRound(){ mutate(d=>{ const tt=d.tournament; const cur=tt.rounds[tt.round-1]; if(cur.matches.some(m=>!m.confirmed))return d; if(tt.round>=tt.totalRounds)return d; const rc=computeRecords(tt.players.concat(Object.keys(tt.kicked||{})),tt.rounds); const order=standing(tt.players,rc); const m=pairRound(order,rc); tt.rounds.push({matches:m}); tt.round++; return d; }); }
   function reset(){ mutate(d=>{ d.tournament={phase:"idle"}; return d; }); }
   function checkIn(){ mutate(d=>{ const tt=d.tournament; if(tt.phase!=="signup")return d; if(!tt.signups||!tt.signups[me])return d; if(Date.now()<(tt.startTime-7200000))return d; if(!tt.checkin)tt.checkin={}; if(tt.checkin[me])return d; tt.checkin[me]=true; if(d.users[me])d.users[me].coins=(d.users[me].coins||0)+20; logCoin(d,me,20,"checkin"); const cs=d.season||1,cw=d.week||1; const already=(d.stats&&d.stats.checkins||[]).some(e=>e.a===me&&((typeof e.s==="number")?e.s:1)===cs&&(e.wk||0)===cw); if(!already) logStat(d,"checkins",{a:me,s:cs,wk:cw,t:Date.now()}); return d; }); }
-  function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; } return d; }); }
+  function report(ri,mi,winner){ mutate(d=>{ const mm=d.tournament.rounds[ri].matches[mi]; if(mm.confirmed)return d; if(!(mm.a===me||mm.b===me))return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; /* one-sided: first report confirms the result */ mm.winner=winner; mm.confirmed=true; return d; }); }
   function startTriangle(){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords(tt.players.concat(Object.keys(tt.kicked||{})),tt.rounds); const ord=swissBoard(tt.players,rc,tt.rounds,tt.tiebreak||{},tt.swissManual||null); tt.tri=seedTri(ord.slice(0,8)); tt.phase="triangle"; return d; }); }
   function moveSwiss(i,dir){ mutate(d=>{ const tt=d.tournament; const rc=computeRecords((tt.players||[]).concat(Object.keys(tt.kicked||{})),tt.rounds); const ord=swissBoard(tt.players||[],rc,tt.rounds,tt.tiebreak||{},tt.swissManual||null); const j=i+dir; if(j<0||j>=ord.length)return d; const a=ord.slice(); const tmp=a[i];a[i]=a[j];a[j]=tmp; tt.swissManual=a; return d; }); }
   function resetSwissOrder(){ mutate(d=>{ if(d.tournament) delete d.tournament.swissManual; return d; }); }
-  function reportTri(k,winner){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(mm.confirmed)return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; if(mm.a&&mm.b&&mm.reports[mm.a]&&mm.reports[mm.b]&&mm.reports[mm.a]===mm.reports[mm.b]){ mm.winner=mm.reports[mm.a]; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } } return d; }); }
+  function reportTri(k,winner){ mutate(d=>{ const tt=d.tournament; const mm=tt.tri[k]; if(mm.confirmed)return d; if(!(mm.a===me||mm.b===me))return d; if(!mm.reports)mm.reports={}; mm.reports[me]=winner; /* one-sided: first report confirms the result */ mm.winner=winner; mm.confirmed=true; triRecompute(tt.tri); if(tt.tri.D1.confirmed){ tt.phase="done"; tt.champion=triW(tt.tri,"A1"); tt.placements=triPlacements(tt.tri); archiveTournament(d); } return d; }); }
   function setTiebreak(n,delta){ mutate(d=>{ if(!d.tournament.tiebreak)d.tournament.tiebreak={}; d.tournament.tiebreak[n]=(d.tournament.tiebreak[n]||0)+delta; return d; }); }
   function delHist(i){ mutate(d=>{ if(d.history) d.history.splice(i,1); return d; }); setDelHistArm(null); setHistSel(null); }
   function kickPlayer(n){ mutate(d=>{ const tt=d.tournament; if(!tt||tt.phase==="idle"||tt.phase==="done") return d;
